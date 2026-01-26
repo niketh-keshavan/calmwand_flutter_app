@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/bluetooth_service.dart';
+import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
 import 'arduino_file_import_screen.dart';
 import 'info_screen.dart';
+import 'login_screen.dart';
 
 /// Settings screen
 /// Ported from Setting.swift
@@ -81,6 +83,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ),
+
+            const SizedBox(height: 16),
+
+            // Account section
+            _buildAccountCard(),
 
             const SizedBox(height: 16),
 
@@ -362,6 +369,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountCard() {
+    final authService = context.watch<AuthService>();
+    
+    if (authService.isLoggedIn) {
+      return _buildCard(
+        child: Column(
+          children: [
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.account_circle, color: Colors.purple.shade700),
+              ),
+              title: const Text(
+                'Signed In',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                authService.userEmail ?? 'Unknown',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.logout, color: Colors.red.shade700),
+              ),
+              title: const Text(
+                'Sign Out',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              subtitle: const Text('Sessions will remain on device'),
+              onTap: () => _showLogoutConfirmation(),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return _buildCard(
+        child: ListTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.purple.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.login, color: Colors.purple.shade700),
+          ),
+          title: const Text(
+            'Sign In',
+            style: TextStyle(fontWeight: FontWeight.w500),
+          ),
+          subtitle: const Text('Sync sessions across devices'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => LoginScreen(
+                  onLoginSuccess: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+  }
+
+  void _showLogoutConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text(
+          'Are you sure you want to sign out?\n\n'
+          'Your sessions will remain on this device, but new sessions will not sync to the cloud until you sign in again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final authService = context.read<AuthService>();
+              await authService.logout();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sign Out'),
           ),
         ],
       ),

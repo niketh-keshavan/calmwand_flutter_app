@@ -4,6 +4,7 @@ import '../providers/session_provider.dart';
 import '../services/bluetooth_service.dart';
 import '../services/preferences_service.dart';
 import '../services/storage_service.dart';
+import '../services/cloud_session_service.dart';
 import '../models/session_model.dart';
 import '../utils/app_theme.dart';
 import 'session_detail_screen.dart';
@@ -146,7 +147,26 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         print('Saving session $sessionId with ${temperatures.length} readings');
         await StorageService.addSession(session);
         
+        // Sync to cloud if logged in (with timeout to prevent hanging)
+        try {
+          final cloudService = context.read<CloudSessionService>();
+          if (cloudService.isLoggedIn) {
+            print('Syncing to cloud...');
+            await cloudService.saveSession(session).timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                print('Cloud sync timed out');
+                return false;
+              },
+            );
+            print('Cloud sync complete');
+          }
+        } catch (e) {
+          print('Cloud sync failed: $e');
+        }
+        
         // Reload sessions from storage to update the UI
+        print('Reloading sessions...');
         await sessionProvider.reloadSessions();
         
         print('Session saved and list updated');
@@ -403,8 +423,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                             ),
                             if (durationMins > 0)
                               Text(
-                                '$durationMins min',
-                                style: TextStyle(fontSize: 12, color: Colors.blue.shade600),
+                                '~$durationMins min (estimated)',
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                               ),
                             Text(
                               filename,

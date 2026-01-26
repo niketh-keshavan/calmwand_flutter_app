@@ -143,9 +143,19 @@ class BluetoothService extends ChangeNotifier {
   /// Start scanning for Calmwand devices
   /// Similar to Swift's startScan logic with state checking
   Future<void> startScan() async {
-    if (_isScanning) {
-      print('Already scanning, ignoring request');
+    print('🔍 startScan() called, _isScanning=$_isScanning, isConnected=$isConnected');
+    
+    // If already connected, don't scan
+    if (isConnected) {
+      print('Already connected, ignoring scan request');
       return;
+    }
+    
+    // Reset scanning state if stuck (safety valve)
+    if (_isScanning) {
+      print('⚠️ Was scanning, forcing reset...');
+      await fbp.FlutterBluePlus.stopScan();
+      _isScanning = false;
     }
 
     // On Web, skip adapter state check (it's often 'unknown')

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/session_provider.dart';
+import '../services/auth_service.dart';
+import '../services/cloud_session_service.dart';
 import '../utils/app_theme.dart';
 import 'session_summary_screen.dart';
 import 'session_history_screen.dart';
@@ -26,11 +30,54 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Fetch cloud sessions after frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchCloudSessions();
+    });
+  }
+
+  Future<void> _fetchCloudSessions() async {
+    final authService = context.read<AuthService>();
+    if (authService.isLoggedIn) {
+      final sessionProvider = context.read<SessionProvider>();
+      await sessionProvider.fetchAndMergeCloudSessions();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final sessionProvider = context.watch<SessionProvider>();
+    
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+          // Show loading overlay when fetching from cloud
+          if (sessionProvider.isLoadingFromCloud)
+            Container(
+              color: Colors.black26,
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: Colors.blue.shade700),
+                        const SizedBox(height: 16),
+                        const Text('Loading sessions from cloud...'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,

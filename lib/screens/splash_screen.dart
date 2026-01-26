@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/preferences_service.dart';
-import '../utils/app_theme.dart';
+import '../services/auth_service.dart';
 import 'disclaimer_screen.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 
 /// Splash screen shown on app launch
 /// Ported from SplashScreenView.swift
@@ -44,13 +46,21 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _navigateToNextScreen() {
     final hasAcceptedDisclaimer = PreferencesService.hasAcceptedDisclaimer();
+    final authService = context.read<AuthService>();
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) {
-          return hasAcceptedDisclaimer
-              ? const HomeScreen()
-              : const DisclaimerScreen();
+          // If not accepted disclaimer, show disclaimer first
+          if (!hasAcceptedDisclaimer) {
+            return const DisclaimerScreen();
+          }
+          // If not logged in, show login screen
+          if (!authService.isLoggedIn) {
+            return const LoginScreen();
+          }
+          // Otherwise go to home
+          return const HomeScreen();
         },
         transitionDuration: const Duration(milliseconds: 300),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {

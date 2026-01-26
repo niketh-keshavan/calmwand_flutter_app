@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/session_model.dart';
 import '../providers/session_provider.dart';
+import '../services/auth_service.dart';
 import '../widgets/temperature_plot.dart';
 import '../utils/csv_exporter.dart';
 import '../utils/app_theme.dart';
@@ -38,11 +39,18 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sessionProvider = Provider.of<SessionProvider>(context, listen: false);
+    final sessionProvider = context.watch<SessionProvider>();
+    
+    // Find the current session from provider to get latest updates
+    final currentSession = sessionProvider.sessionArray.firstWhere(
+      (s) => s.sessionNumber == widget.session.sessionNumber && 
+             s.timestamp == widget.session.timestamp,
+      orElse: () => widget.session,
+    );
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Session ${widget.session.sessionNumber}'),
+        title: Text('Session ${currentSession.sessionNumber}'),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         actions: [
@@ -85,15 +93,15 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   TemperaturePlot(
-                    temperatureData: widget.session.tempSetData,
-                    duration: widget.session.duration,
-                    interval: widget.session.duration ~/
-                        (widget.session.tempSetData.length > 1
-                            ? widget.session.tempSetData.length - 1
+                    temperatureData: currentSession.tempSetData,
+                    duration: currentSession.duration,
+                    interval: currentSession.duration ~/
+                        (currentSession.tempSetData.length > 1
+                            ? currentSession.tempSetData.length - 1
                             : 1),
-                    regressionA: widget.session.regressionA,
-                    regressionB: widget.session.regressionB,
-                    regressionK: widget.session.regressionK,
+                    regressionA: currentSession.regressionA,
+                    regressionB: currentSession.regressionB,
+                    regressionK: currentSession.regressionK,
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -128,21 +136,21 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildMetricRow('Date', _formatDateTime(widget.session.timestamp)),
-                  _buildMetricRow('Duration', '${widget.session.duration} seconds (${_formatDuration(widget.session.duration)})'),
-                  _buildMetricRow('Score', widget.session.score != null
-                      ? '${widget.session.score!.toStringAsFixed(2)} / 100'
+                  _buildMetricRow('Date', _formatDateTime(currentSession.timestamp)),
+                  _buildMetricRow('Duration', '${currentSession.duration} seconds (${_formatDuration(currentSession.duration)})'),
+                  _buildMetricRow('Score', currentSession.score != null
+                      ? '${currentSession.score!.toStringAsFixed(2)} / 100'
                       : 'N/A'),
-                  _buildMetricRow('Temperature Change', '${widget.session.temperatureChange.toStringAsFixed(2)} °C'),
-                  _buildMetricRow('Data Points', '${widget.session.tempSetData.length}'),
+                  _buildMetricRow('Temperature Change', '${currentSession.temperatureChange.toStringAsFixed(2)} °C'),
+                  _buildMetricRow('Data Points', '${currentSession.tempSetData.length}'),
                 ],
               ),
             ),
 
             // Regression parameters
-            if (widget.session.regressionA != null &&
-                widget.session.regressionB != null &&
-                widget.session.regressionK != null)
+            if (currentSession.regressionA != null &&
+                currentSession.regressionB != null &&
+                currentSession.regressionK != null)
               Container(
                 margin: const EdgeInsets.all(16),
                 padding: const EdgeInsets.all(16),
@@ -171,9 +179,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildMetricRow('A', widget.session.regressionA!.toStringAsFixed(4)),
-                    _buildMetricRow('B', widget.session.regressionB!.toStringAsFixed(4)),
-                    _buildMetricRow('k', widget.session.regressionK!.toStringAsFixed(4)),
+                    _buildMetricRow('A', currentSession.regressionA!.toStringAsFixed(4)),
+                    _buildMetricRow('B', currentSession.regressionB!.toStringAsFixed(4)),
+                    _buildMetricRow('k', currentSession.regressionK!.toStringAsFixed(4)),
                   ],
                 ),
               ),
@@ -225,15 +233,15 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                           maxLines: 4,
                         )
                       : Text(
-                          widget.session.comment?.isNotEmpty == true
-                              ? widget.session.comment!
+                          currentSession.comment.isNotEmpty
+                              ? currentSession.comment
                               : 'No comment',
                           style: TextStyle(
                             fontSize: 14,
-                            color: widget.session.comment?.isNotEmpty == true
+                            color: currentSession.comment.isNotEmpty
                                 ? Colors.black87
                                 : Colors.grey,
-                            fontStyle: widget.session.comment?.isNotEmpty == true
+                            fontStyle: currentSession.comment.isNotEmpty
                                 ? FontStyle.normal
                                 : FontStyle.italic,
                           ),
@@ -303,7 +311,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     return '${minutes}m ${remainingSeconds}s';
   }
 
-  void _saveComment(SessionProvider sessionProvider) {
+  void _saveComment(SessionProvider sessionProvider) async {
+    final authService = context.read<AuthService>();
+    
     final updatedSession = SessionModel(
       sessionNumber: widget.session.sessionNumber,
       duration: widget.session.duration,
@@ -319,14 +329,30 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       timestamp: widget.session.timestamp,
     );
 
-    sessionProvider.updateSessionByModel(updatedSession);
+    await sessionProvider.updateSessionByModel(updatedSession);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Comment saved'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    if (mounted) {
+      final message = authService.isLoggedIn 
+        ? 'Comment saved and synced to cloud' 
+        : 'Comment saved locally';
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                authService.isLoggedIn ? Icons.cloud_done : Icons.check,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _exportSession(BuildContext context) async {

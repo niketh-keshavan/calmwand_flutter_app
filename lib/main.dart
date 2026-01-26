@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 import 'services/storage_service.dart';
 import 'services/preferences_service.dart';
 import 'services/bluetooth_service.dart';
+import 'services/auth_service.dart';
+import 'services/cloud_session_service.dart';
 import 'providers/session_provider.dart';
 import 'providers/current_session_provider.dart';
 import 'providers/settings_provider.dart';
@@ -19,6 +23,11 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // Initialize storage services
   await StorageService.initialize();
@@ -37,6 +46,11 @@ class CalmwandApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // Auth service (needed first for cloud sync)
+        ChangeNotifierProvider(
+          create: (_) => AuthService()..initialize(),
+        ),
+
         // Settings provider (needed first for session provider)
         ChangeNotifierProvider(
           create: (_) => SettingsProvider(),
@@ -47,13 +61,21 @@ class CalmwandApp extends StatelessWidget {
           create: (_) => BluetoothService(),
         ),
 
-        // Session provider (depends on settings)
-        ChangeNotifierProxyProvider<SettingsProvider, SessionProvider>(
+        // Cloud session service (depends on auth)
+        ProxyProvider<AuthService, CloudSessionService>(
+          update: (_, auth, __) => CloudSessionService(auth),
+        ),
+
+        // Session provider (depends on settings and cloud service)
+        ChangeNotifierProxyProvider2<SettingsProvider, CloudSessionService, SessionProvider>(
           create: (context) => SessionProvider(
             context.read<SettingsProvider>().settings,
           ),
-          update: (_, settings, previous) =>
-              previous ?? SessionProvider(settings.settings),
+          update: (context, settings, cloudService, previous) {
+            final provider = previous ?? SessionProvider(settings.settings);
+            provider.setCloudService(cloudService);
+            return provider;
+          },
         ),
 
         // Current session provider

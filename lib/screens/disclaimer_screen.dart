@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/preferences_service.dart';
+import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 
 /// Disclaimer screen shown on first launch
 /// Ported from DisclaimerView.swift
@@ -12,9 +15,18 @@ class DisclaimerScreen extends StatelessWidget {
     await PreferencesService.setDisclaimerAccepted(true);
 
     if (context.mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      final authService = context.read<AuthService>();
+      
+      // If not logged in, show login screen, otherwise go to home
+      if (!authService.isLoggedIn) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
     }
   }
 

@@ -62,18 +62,30 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
                         showDialog(
                           context: context,
                           barrierDismissible: false,
-                          builder: (dialogContext) => WillPopScope(
-                            onWillPop: () async => false,
+                          builder: (dialogContext) => PopScope(
+                            canPop: false,
                             child: AlertDialog(
-                              content: Row(
+                              content: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   CircularProgressIndicator(
                                     color: Colors.blue.shade700,
                                   ),
-                                  const SizedBox(width: 16),
-                                  const Expanded(
-                                    child: Text('Connecting...'),
+                                  const SizedBox(height: 20),
+                                  const Text(
+                                    'Connecting to Calmwand...',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Discovering services and characteristics',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade600,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -84,7 +96,7 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
                       
                       // Wait for device to be fully ready
                       int waited = 0;
-                      while (!bluetoothService.isDeviceReady && waited < 10000) {
+                      while (!bluetoothService.isDeviceReady && waited < 15000) {
                         await Future.delayed(const Duration(milliseconds: 100));
                         waited += 100;
                       }
@@ -92,6 +104,32 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
                       // Close loading dialog
                       if (context.mounted && Navigator.of(context).canPop()) {
                         Navigator.of(context).pop();
+                      }
+                      
+                      // Show success or error message
+                      if (context.mounted) {
+                        if (bluetoothService.isDeviceReady) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: [
+                                  const Icon(Icons.check_circle, color: Colors.white),
+                                  const SizedBox(width: 8),
+                                  Text('Connected to ${bluetoothService.connectedDeviceName ?? "Calmwand"}'),
+                                ],
+                              ),
+                              backgroundColor: Colors.green,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connection timed out. Please try again.'),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
                       }
                     } else {
                       // On native: show device list
