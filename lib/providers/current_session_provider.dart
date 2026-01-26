@@ -27,7 +27,13 @@ class CurrentSessionProvider extends ChangeNotifier {
     if (_isSessionActive) return;
 
     _isSessionActive = true;
+
+    // ✅ CLAUDE FIX: Preserve sessionId when starting session
+    // Save sessionId before reset, then restore it
+    final savedSessionId = _model.sessionId;
     _model.reset();
+    _model.sessionId = savedSessionId;  // Restore sessionId
+
     notifyListeners();
 
     // Timer ticks every second
