@@ -66,6 +66,9 @@ class BluetoothService extends ChangeNotifier {
 
   bool _fileContentTransferCompleted = false;
   bool get fileContentTransferCompleted => _fileContentTransferCompleted;
+  
+  // Track when last file content was received (for timeout-based completion)
+  DateTime? _lastFileContentReceived;
 
   // Device ready state (set after all characteristics discovered and notifications enabled)
   bool _isDeviceReady = false;
@@ -642,15 +645,45 @@ class BluetoothService extends ChangeNotifier {
   }
 
   void _handleFileContentUpdate(String value) {
-    if (value != BluetoothConstants.markerEOF) {
-      print('Received file line: $value');
-      _arduinoFileContentLines.add(value);
+    final trimmed = value.trim();
+    // Debug: print raw bytes to see exactly what we're getting
+    print('Received file content: "$trimmed" (raw bytes: ${value.codeUnits})');
+    
+    if (trimmed.isEmpty) {
+      print('Skipping empty line');
+      return;
+    }
+    
+    // Check for EOF marker (case-insensitive, with various possible formats)
+    if (trimmed.toUpperCase() == 'EOF' || 
+        trimmed == BluetoothConstants.markerEOF ||
+        trimmed.toUpperCase().startsWith('EOF')) {
+      print('✅ Received EOF marker.');
+      _fileContentTransferCompleted = true;
+      _lastFileContentReceived = null;
       notifyListeners();
     } else {
-      print('Received EOF.');
-      _fileContentTransferCompleted = true;
+      _arduinoFileContentLines.add(value);
+      _lastFileContentReceived = DateTime.now();
       notifyListeners();
     }
+  }
+  
+  /// Check if file transfer appears complete based on timeout (no data for 3 seconds)
+  /// Call this in polling loop as fallback when EOF is not received
+  bool isFileTransferStalled() {
+    if (_lastFileContentReceived == null) return false;
+    if (_arduinoFileContentLines.isEmpty) return false;
+    final elapsed = DateTime.now().difference(_lastFileContentReceived!);
+    return elapsed.inMilliseconds > 3000;
+  }
+  
+  /// Mark file transfer as complete (used when EOF not received but transfer stalled)
+  void markFileTransferComplete() {
+    print('⚠️ Marking file transfer complete (EOF not received, timeout fallback)');
+    _fileContentTransferCompleted = true;
+    _lastFileContentReceived = null;
+    notifyListeners();
   }
 
   void _handleSessionIdUpdate(String value) {

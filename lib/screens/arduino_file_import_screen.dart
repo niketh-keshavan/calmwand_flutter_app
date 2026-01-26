@@ -240,13 +240,21 @@ class _ArduinoFileImportScreenState extends State<ArduinoFileImportScreen> {
       });
 
       // Poll for completion (check every 500ms for up to 30 seconds)
+      // Also check for stalled transfer (EOF packet may be lost over BLE)
       int attempts = 0;
       while (!bluetoothService.fileContentTransferCompleted && attempts < 60) {
         await Future.delayed(const Duration(milliseconds: 500));
         attempts++;
+        
+        // Check if transfer is stalled (no new data for 3+ seconds after receiving some data)
+        if (bluetoothService.isFileTransferStalled()) {
+          print('⚠️ File transfer stalled - EOF likely lost, proceeding with received data');
+          bluetoothService.markFileTransferComplete();
+          break;
+        }
       }
 
-      if (!bluetoothService.fileContentTransferCompleted) {
+      if (!bluetoothService.fileContentTransferCompleted && bluetoothService.arduinoFileContentLines.isEmpty) {
         throw Exception('File transfer timeout');
       }
 

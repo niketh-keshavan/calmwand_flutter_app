@@ -19,6 +19,9 @@ class CloudSessionService {
   /// Check if user is logged in
   bool get isLoggedIn => _authService.isLoggedIn;
   
+  /// Get the current user's ID
+  String? get userId => _authService.userId;
+  
   /// Save a session to the cloud
   /// Uses sessionNumber + timestamp as unique identifier
   Future<bool> saveSession(SessionModel session) async {

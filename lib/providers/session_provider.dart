@@ -12,6 +12,7 @@ class SessionProvider extends ChangeNotifier {
   final UserSettingsModel _userSettings;
   CloudSessionService? _cloudService;
   bool _isLoadingFromCloud = false;
+  String? _lastFetchedForUserId; // Track which user we've fetched for
 
   List<SessionModel> get sessionArray => List.unmodifiable(_sessionArray);
   bool get isLoadingFromCloud => _isLoadingFromCloud;
@@ -22,12 +23,16 @@ class SessionProvider extends ChangeNotifier {
 
   /// Set the cloud service for syncing (called after login)
   void setCloudService(CloudSessionService? service) {
-    final wasLoggedIn = _cloudService?.isLoggedIn ?? false;
     _cloudService = service;
     
-    // If user just logged in, fetch cloud sessions
-    if (service != null && service.isLoggedIn && !wasLoggedIn) {
+    // If user is logged in and we haven't fetched for this user yet, fetch cloud sessions
+    final currentUserId = service?.userId;
+    if (service != null && service.isLoggedIn && currentUserId != null && _lastFetchedForUserId != currentUserId) {
+      _lastFetchedForUserId = currentUserId;
       fetchAndMergeCloudSessions();
+    } else if (service == null || !service.isLoggedIn) {
+      // User logged out, reset the tracking
+      _lastFetchedForUserId = null;
     }
   }
 

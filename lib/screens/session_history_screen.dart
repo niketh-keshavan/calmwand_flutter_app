@@ -94,13 +94,29 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     await bluetoothService.requestArduinoFile(filename.toUpperCase());
 
     // Wait for file content to be received (with timeout)
+    // Also check for stalled transfer (EOF packet may be lost over BLE)
     int waitedMs = 0;
+    int lastLineCount = 0;
     while (!bluetoothService.fileContentTransferCompleted && waitedMs < 30000) {
       await Future.delayed(const Duration(milliseconds: 100));
       waitedMs += 100;
+      
+      // Check if transfer is stalled (no new data for 3+ seconds after receiving some data)
+      if (bluetoothService.isFileTransferStalled()) {
+        print('⚠️ File transfer stalled - EOF likely lost, proceeding with received data');
+        bluetoothService.markFileTransferComplete();
+        break;
+      }
+      
+      // Log progress every 5 seconds
+      final currentCount = bluetoothService.arduinoFileContentLines.length;
+      if (waitedMs % 5000 == 0 && currentCount > 0) {
+        print('Transfer in progress: $currentCount lines received...');
+      }
+      lastLineCount = currentCount;
     }
 
-    if (bluetoothService.fileContentTransferCompleted) {
+    if (bluetoothService.fileContentTransferCompleted || bluetoothService.arduinoFileContentLines.isNotEmpty) {
       // Parse the file content into a session
       final lines = bluetoothService.arduinoFileContentLines;
       final temperatures = <double>[];
