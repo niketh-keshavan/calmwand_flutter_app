@@ -72,6 +72,7 @@ int previous_num_led_on = 0;
 bool vibration_progress[NumberOfColors * 6];
 
 bool cancelRequested = false;
+bool wasConnected = false; // BLE State tracking
 
 // SD Card Variables
 const int chipSelect = D7;  
@@ -83,7 +84,7 @@ char fileNameBuffer[20];
 
 // Timing Variables
 unsigned long lastLoopTime = 0;
-unsigned long debugTimer = 0; // NEW: Timer for Serial prints
+unsigned long lastTempSendTime = 0; // Debug: track temp send timing
 
 // --- FUNCTIONS ---
 
@@ -101,11 +102,22 @@ int GetOptimizedAverage(int newTemp) {
 }
 
 int getNextSessionId() {
+  if (SD.exists("nextsid.txt")) {
+    File cache = SD.open("nextsid.txt", FILE_READ);
+    if (cache) {
+      String line = cache.readStringUntil('\n');
+      cache.close();
+      line.trim();
+      int cached = line.toInt();
+      if (cached >= 0) {
+        return cached;
+      }
+    }
+  }
+
   int maxNum = -1;
   File root = SD.open("/");
-  if (!root) {
-    Serial.println("⚠️ ERROR: Couldn't open root for scan!");
-  } else {
+  if (root) {
     File entry = root.openNextFile();
     while (entry) {
       String name = entry.name();
@@ -125,52 +137,75 @@ int getNextSessionId() {
   return maxNum + 1;
 }
 
+void saveNextSessionIdCache(int nextId) {
+  if (SD.exists("nextsid.txt")) {
+    SD.remove("nextsid.txt");
+  }
+  File cache = SD.open("nextsid.txt", FILE_WRITE);
+  if (cache) {
+    cache.println(nextId);
+    cache.close();
+  }
+}
+
 void startNewSession() {
-  Serial.println("🔵 ACTION: startNewSession() called");
+  Serial.println("BLE DEBUG: startNewSession() called");
+  
   if (myFile) {
     myFile.close();
-    Serial.println("   -> Closed previous file.");
+    Serial.println("BLE DEBUG: Closed previous file");
   }
 
   fileNumber = getNextSessionId();
+  Serial.print("BLE DEBUG: Got SessionID: ");
+  Serial.println(fileNumber);
+  
   snprintf(fileNameBuffer, sizeof(fileNameBuffer), "data%d.txt", fileNumber);
+  Serial.print("BLE DEBUG: Opening file: ");
+  Serial.println(fileNameBuffer);
 
   myFile = SD.open(fileNameBuffer, FILE_WRITE);
   if (myFile) {
-    Serial.print("✅ Recording to: "); Serial.println(fileNameBuffer);
+    saveNextSessionIdCache(fileNumber + 1);
+    Serial.println("BLE DEBUG: File opened successfully");
   } else {
-    Serial.print("❌ FATAL: Failed to open "); Serial.println(fileNameBuffer);
+    Serial.println("BLE DEBUG: ERROR - Failed to open file!");
   }
-  sessionIdCharacteristic.setValue(String(fileNumber));
+  
+  // Send SessionID via BLE notification
+  String sidStr = String(fileNumber);
+  Serial.print("BLE DEBUG: Sending SessionID notification: '");
+  Serial.print(sidStr);
+  Serial.println("'");
+  
+  sessionIdCharacteristic.setValue(sidStr);
+  
+  // Give BLE stack time to send the notification
+  unsigned long start = millis();
+  while (millis() - start < 50) { BLE.poll(); }
+  
+  Serial.println("BLE DEBUG: SessionID notification sent");
 }
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial && millis() < 2000); // Wait for serial console
-  Serial.println("\n\n--- CALMWAND STARTING UP ---");
+  // Wait for serial so we can see startup BLE logs, timeout after 2s if no USB
+  while (!Serial && millis() < 2000); 
 
   pinMode(motor_pin, OUTPUT);
   pinMode(BREATH_PIN, OUTPUT);
   digitalWrite(BREATH_PIN, LOW);
 
-  Serial.println("-> Init MLX90614...");
   mlx.begin();
   
-  Serial.println("-> Init NeoPixels...");
   pixels.begin();
   pixels.clear();
   pixels.show();
 
   for(int i=0; i<NumOfPoints; i++) tempBuffer[i] = 0;
 
-  Serial.println("-> Init SD Card...");
-  if (!SD.begin(chipSelect)) {
-    Serial.println("❌ SD Card initialization failed!");
-  } else {
-    Serial.println("✅ SD Card initialized.");
+  if (SD.begin(chipSelect)) {
     startNewSession(); 
-    
-    // Load config
     if (SD.exists("config.txt")) {
       File cfg = SD.open("config.txt", FILE_READ);
       if (cfg) {
@@ -179,18 +214,16 @@ void setup() {
         int stored = line.toInt();
         if (stored >= 0 && stored <= 255) {
           MaxBrightness = stored;
-          Serial.print("   -> Config Loaded: MaxBrightness = "); Serial.println(MaxBrightness);
         }
         cfg.close();
       }
-    } else {
-      Serial.println("   -> config.txt not found, using default.");
     }
+  } else {
+    Serial.println("BLE DEBUG: SD Card Init Failed - File operations will fail.");
   }
 
-  Serial.println("-> Init BLE...");
   if (!BLE.begin()) {
-    Serial.println("❌ BLE Failed to start!");
+    Serial.println("BLE DEBUG: BLE Hardware Init Failed!");
     while(1);
   }
   
@@ -212,9 +245,8 @@ void setup() {
 
   BLE.addService(radarService);
   BLE.advertise();
-  Serial.println("✅ BLE Advertising. Waiting for connection...");
-
-  // Set initial characteristic values
+  
+  // INITIAL BLE CONFIG VALUES
   brightnessCharacteristic.setValue(String(MaxBrightness));
   inBreathTimeCharacteristic.setValue(String(InbreathTime));
   outBreathTimeCharacteristic.setValue(String(OutbreathTime));
@@ -225,7 +257,7 @@ void setup() {
   } 
   
   BreathTimer = millis();
-  Serial.println("--- SETUP COMPLETE ---");
+  Serial.println("BLE DEBUG: System Ready. Advertising started.");
 }
 
 int ConvertRGBtoInt(float RGBValues[3], float brightnessVal) {
@@ -266,10 +298,11 @@ int DetermineNumberofLedsOn(float Temp, int currentLedsOn) {
 }
 
 void sendFileContent(const String &filename) {
-  Serial.print("📂 sending content of: "); Serial.println(filename);
+  Serial.print("BLE DEBUG: >> Sending file content: "); Serial.println(filename);
+  
   File f = SD.open(filename, FILE_READ);
   if (!f) {
-    Serial.println("❌ Failed to open file for sending.");
+    Serial.println("BLE DEBUG: >> Error: File not found on SD.");
     return;
   }
 
@@ -279,7 +312,7 @@ void sendFileContent(const String &filename) {
   while (f.available()) {
     BLE.poll(); 
     if (cancelRequested) {
-      Serial.println("⚠️ Transfer Cancelled by User");
+      Serial.println("BLE DEBUG: >> Transfer Cancelled by Central.");
       break;
     }
 
@@ -293,9 +326,9 @@ void sendFileContent(const String &filename) {
     }
   }
   f.close();
-  Serial.print("   -> Sent bytes: "); Serial.println(byteCount);
-
+  
   if (!cancelRequested) {
+    Serial.print("BLE DEBUG: >> Transfer Complete. Bytes sent: "); Serial.println(byteCount);
     fileContentChar.setValue("EOF");
     delay(10);
   }
@@ -305,7 +338,7 @@ void handleBleCommands() {
   
   if (brightnessCharacteristic.written()) {
     float val = brightnessCharacteristic.value().toFloat();
-    Serial.print("📡 BLE Write: MaxBrightness -> "); Serial.println(val);
+    Serial.print("BLE DEBUG: Write Brightness: "); Serial.println(val);
     MaxBrightness = constrain(val, 0, 255);
     
     SD.remove("config.txt");
@@ -317,49 +350,43 @@ void handleBleCommands() {
   if (inBreathTimeCharacteristic.written()) {
     InbreathTime = inBreathTimeCharacteristic.value().toFloat(); 
     BreathCycleTime = InbreathTime + OutbreathTime;
-    Serial.print("📡 BLE Write: Inhale Time -> "); Serial.println(InbreathTime);
+    Serial.print("BLE DEBUG: Write InBreath: "); Serial.println(InbreathTime);
     inBreathTimeCharacteristic.setValue(String(InbreathTime));
   }
 
   if (outBreathTimeCharacteristic.written()) {
     OutbreathTime = outBreathTimeCharacteristic.value().toFloat();
     BreathCycleTime = InbreathTime + OutbreathTime;
-    Serial.print("📡 BLE Write: Exhale Time -> "); Serial.println(OutbreathTime);
+    Serial.print("BLE DEBUG: Write OutBreath: "); Serial.println(OutbreathTime);
     outBreathTimeCharacteristic.setValue(String(OutbreathTime));
   }
 
   if (motorStrengthCharacteristic.written()) {
     MotorStrength = constrain(motorStrengthCharacteristic.value().toFloat(), 0, 255);
-    Serial.print("📡 BLE Write: Motor Strength -> "); Serial.println(MotorStrength);
+    Serial.print("BLE DEBUG: Write Motor: "); Serial.println(MotorStrength);
     motorStrengthCharacteristic.setValue(String(MotorStrength));
   }
   
-  // --- FIXED FILE LISTING WITH DURATION ---
   if (fileListRequestChar.written()) {
     if (fileListRequestChar.value() == "GETLIST") {
-       Serial.println("📡 BLE Req: GETLIST");
+       Serial.println("BLE DEBUG: Command GETLIST received.");
        File root = SD.open("/");
        if (root) {
          File entry = root.openNextFile();
          while (entry) {
            if (!entry.isDirectory()) {
              String fname = String(entry.name());
-             // 1. Extract ID
              int sid = fname.substring(4, fname.length() - 4).toInt(); 
              
-             // 2. Calculate Duration (Instant Math)
-             // Each line is ~14 bytes and represents 1 second.
              unsigned long fsize = entry.size();
              int estimatedMins = (fsize / 14) / 60;
-             if (estimatedMins < 1) estimatedMins = 1; // Minimum 1 min
+             if (estimatedMins < 1) estimatedMins = 1; 
              
-             // 3. Format: ID:FILENAME:DURATION
              String out = String(sid) + ":" + fname + ":" + String(estimatedMins); 
              
              fileNameChar.setValue(out);
-             Serial.print("   -> Listing: "); Serial.println(out);
+             Serial.print("BLE DEBUG: Listing File -> "); Serial.println(out);
              
-             // Vital delay for BLE stability
              unsigned long start = millis();
              while (millis() - start < 15) { BLE.poll(); }
            }
@@ -368,56 +395,64 @@ void handleBleCommands() {
          }
          root.close();
          
-         // 4. Send END signal
          fileNameChar.setValue("END");
-         Serial.println("🏁 Sent END signal.");
+         Serial.println("BLE DEBUG: End of File List.");
          
          unsigned long start = millis();
          while (millis() - start < 20) { BLE.poll(); } 
+       } else {
+         Serial.println("BLE DEBUG: SD Root open failed.");
        }
     }
   }
 
   if (fileContentRequestChar.written()) {
     String cmd = fileContentRequestChar.value();
-    Serial.print("📡 BLE Req: File Content Cmd: "); Serial.println(cmd);
+    Serial.print("BLE DEBUG: Content Req: "); Serial.println(cmd);
     
     if (cmd.startsWith("GETFILE:")) {
       String filename = cmd.substring(8);
       filename.trim();
       sendFileContent(filename);
     }
-    else if (cmd == "CANCEL") { cancelRequested = true; }
+    else if (cmd == "CANCEL") { 
+      cancelRequested = true; 
+      Serial.println("BLE DEBUG: Cancel Flag Set.");
+    }
     else if (cmd.startsWith("DELETE:")) {
       String filename = cmd.substring(7);
       filename.trim();
       if (SD.exists(filename)) {
         SD.remove(filename);
-        Serial.println("   -> File deleted.");
+        if (SD.exists("nextsid.txt")) SD.remove("nextsid.txt");
+        Serial.print("BLE DEBUG: File Deleted: "); Serial.println(filename);
+      } else {
+        Serial.print("BLE DEBUG: Delete failed, file missing: "); Serial.println(filename);
       }
     }
   }
 
   if (fileActionChar.written()) {
     String cmd = fileActionChar.value();
-    Serial.print("📡 BLE Req: Action Cmd: "); Serial.println(cmd);
+    Serial.print("BLE DEBUG: Action Req: "); Serial.println(cmd);
     
     if (cmd == "START") {
       startNewSession();
+      Serial.println("BLE DEBUG: New Session Started via BLE.");
     } else if (cmd.startsWith("DELETE:")) {
       String fname = cmd.substring(7);
       fname.trim();
       if (SD.exists(fname)) {
         SD.remove(fname);
+        if (SD.exists("nextsid.txt")) SD.remove("nextsid.txt");
         fileNameChar.setValue("DELETED:" + fname);
         
         unsigned long start = millis();
         while (millis() - start < 15) { BLE.poll(); }
-        
-        Serial.println("   -> File deleted via Action char.");
+        Serial.print("BLE DEBUG: Action Delete success: "); Serial.println(fname);
       } else {
         fileNameChar.setValue("ERROR:NOTFOUND:" + fname);
-        Serial.println("   -> File not found.");
+        Serial.print("BLE DEBUG: Action Delete fail (not found): "); Serial.println(fname);
       }
     }
   }
@@ -426,7 +461,23 @@ void handleBleCommands() {
 // --- MAIN LOOP ---
 void loop() {
   BLE.poll();
-  handleBleCommands();
+
+  // --- BLE CONNECTION TRACKING ---
+  BLEDevice central = BLE.central();
+  if (central) {
+    if (!wasConnected) {
+      Serial.print("BLE DEBUG: Device Connected. Address: ");
+      Serial.println(central.address());
+      wasConnected = true;
+    }
+    // Handle commands only when connected
+    handleBleCommands();
+  } else {
+    if (wasConnected) {
+      Serial.println("BLE DEBUG: Device Disconnected.");
+      wasConnected = false;
+    }
+  }
 
   unsigned long currentMillis = millis();
 
@@ -439,16 +490,13 @@ void loop() {
     
     // B. Breath Logic
     BreathPacer = currentMillis - BreathTimer;
-    String breathPhase = "IDLE";
     
     if (BreathPacer < InbreathTime) {
-      breathPhase = "INHALE";
       Brightness = MaxBrightness * pow((BreathPacer / InbreathTime), 2);
       digitalWrite(BREATH_PIN, HIGH);
       pixels.setPixelColor(0, pixels.Color(0, 20, 0)); 
     } 
     else if (BreathPacer < BreathCycleTime) {
-      breathPhase = "EXHALE";
       float progress = BreathPacer - InbreathTime;
       Brightness = MaxBrightness * pow(-(progress - OutbreathTime) / OutbreathTime, 2);
       digitalWrite(BREATH_PIN, LOW);
@@ -470,7 +518,6 @@ void loop() {
         && vibration_progress[currentLedIndex] == 0) {
       vibration = 1;
       vibration_start = currentMillis;
-      Serial.println("📳 VIBRATION START");
       for (int i = 0; i <= currentLedIndex; i++) { vibration_progress[i] = 1; }
     }
 
@@ -488,7 +535,6 @@ void loop() {
       analogWrite(motor_pin, MotorStrength);
       if (currentMillis - vibration_start > 300) { 
         vibration = 0; 
-        Serial.println("📳 VIBRATION END");
       }
     } else {
       analogWrite(motor_pin, 0);
@@ -503,10 +549,21 @@ void loop() {
     for (int i = NumberOfLedsOn + 1; i < 7; i++) { pixels.setPixelColor(i, color1); }
     pixels.show();
 
-    // F. Send BLE Data
-    if (BLE.central().connected()) {
+    // F. Send BLE Data - use wasConnected flag for reliability
+    if (wasConnected) {
        String tempStr = String(AverageTemp); 
        temperatureCharacteristic.setValue(tempStr);
+       
+       // Debug: Print every 500ms to avoid flooding serial
+       if (currentMillis - lastTempSendTime >= 500) {
+         lastTempSendTime = currentMillis;
+         Serial.print("BLE TX: Temp=");
+         Serial.print(tempStr);
+         Serial.print(" | Raw=");
+         Serial.print(rawTemp);
+         Serial.print(" | Connected=");
+         Serial.println(wasConnected ? "YES" : "NO");
+       }
     }
 
     // G. SD Logging
@@ -518,20 +575,6 @@ void loop() {
         myFile.println(AverageTemp);
         myFile.flush();
       }
-    }
-    
-    // --- H. PERIODIC DEBUG PRINTS (Every 500ms) ---
-    if (currentMillis - debugTimer > 500) {
-      debugTimer = currentMillis;
-      Serial.print("STAT | T_Raw: "); Serial.print(rawTemp);
-      Serial.print(" | T_Avg: "); Serial.print(AverageTemp);
-      Serial.print(" | Brth: "); Serial.print(breathPhase);
-      Serial.print(" | Bri: "); Serial.print((int)Brightness);
-      Serial.print(" | LEDs: "); Serial.print(NumberOfLedsOn);
-      Serial.print(" | Vib: "); Serial.println(vibration);
-      
-      // Check SD Card health
-      if (!myFile) Serial.println("⚠️ WARNING: SD File not open!");
     }
   }
 }

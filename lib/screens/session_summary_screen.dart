@@ -6,6 +6,7 @@ import '../providers/current_session_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/app_theme.dart';
+import '../widgets/mini_graph_view.dart';
 import 'bluetooth_connection_screen.dart';
 
 /// Session summary screen - main session interface
@@ -191,6 +192,21 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
           style: TextStyle(
             fontSize: 14,
             color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 20),
+        // Temperature graph
+        Container(
+          width: 280,
+          height: 120,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300, width: 1),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.white.withValues(alpha: 0.5),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: MiniGraphView(data: session.temperatureSet),
           ),
         ),
       ],

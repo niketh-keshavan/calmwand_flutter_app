@@ -67,6 +67,10 @@ class BluetoothService extends ChangeNotifier {
   bool _fileContentTransferCompleted = false;
   bool get fileContentTransferCompleted => _fileContentTransferCompleted;
 
+  // Device ready state (set after all characteristics discovered and notifications enabled)
+  bool _isDeviceReady = false;
+  bool get isDeviceReady => _isDeviceReady;
+
   // Subscriptions
   StreamSubscription? _scanSubscription;
   StreamSubscription? _connectionStateSubscription;
@@ -110,6 +114,14 @@ class BluetoothService extends ChangeNotifier {
   /// Check initial bluetooth state when service starts
   Future<void> _checkInitialBluetoothState() async {
     try {
+      // On Web, adapter state is often 'unknown' - that's OK, scan is triggered by user
+      if (kIsWeb) {
+        _statusMessage = 'Tap to scan for devices';
+        _adapterState = fbp.BluetoothAdapterState.on; // Assume available on Web
+        notifyListeners();
+        return;
+      }
+
       final state = await fbp.FlutterBluePlus.adapterState.first;
       _adapterState = state;
 
@@ -136,8 +148,9 @@ class BluetoothService extends ChangeNotifier {
       return;
     }
 
-    // Check if Bluetooth is available (similar to Swift's .poweredOn check)
-    if (_adapterState != fbp.BluetoothAdapterState.on) {
+    // On Web, skip adapter state check (it's often 'unknown')
+    // Web Bluetooth will prompt user for permission when scan starts
+    if (!kIsWeb && _adapterState != fbp.BluetoothAdapterState.on) {
       _statusMessage = 'Bluetooth must be turned ON to scan';
       notifyListeners();
       print('Cannot scan: Bluetooth state is $_adapterState');
@@ -170,16 +183,34 @@ class BluetoothService extends ChangeNotifier {
         notifyListeners();
       });
 
-      // Start scanning with service filter (matches Swift's scanForPeripherals)
-      // Set 5 second timeout for Web platform compatibility
-      await fbp.FlutterBluePlus.startScan(
-        withServices: [fbp.Guid(BluetoothConstants.serviceUUID)],
-        timeout: const Duration(seconds: 5),
-      );
+      // Start scanning
+      // On Web: use withKeywords for device name matching AND withServices for optionalServices
+      // Web Bluetooth requires service UUIDs in optionalServices to access them after connection
+      // On native: use withServices for service UUID filtering
+      if (kIsWeb) {
+        await fbp.FlutterBluePlus.startScan(
+          withKeywords: ['Calmwand'],
+          withServices: [fbp.Guid(BluetoothConstants.serviceUUID)],  // Required for Web optionalServices
+          timeout: const Duration(seconds: 10),
+        );
+      } else {
+        await fbp.FlutterBluePlus.startScan(
+          withServices: [fbp.Guid(BluetoothConstants.serviceUUID)],
+          timeout: const Duration(seconds: 5),
+        );
+      }
 
       // Wait for scan to complete and update status
       await fbp.FlutterBluePlus.isScanning.firstWhere((scanning) => scanning == false);
       _isScanning = false;
+      
+      // On Web, auto-connect to the first device found (user already selected it in Chrome popup)
+      if (kIsWeb && _devices.isNotEmpty) {
+        print('Web: Auto-connecting to selected device...');
+        await connect(_devices.first);
+        return;
+      }
+      
       _statusMessage = _devices.isEmpty
           ? 'No devices found. Tap to scan again.'
           : 'Found ${_devices.length} device(s)';
@@ -366,10 +397,11 @@ class BluetoothService extends ChangeNotifier {
       }
     }
 
-    print('All characteristics discovered. Setting up notifications (background)...');
+    print('All characteristics discovered. Setting up notifications...');
 
-    // PHASE 2: Set up notifications for NOTIFY characteristics (ASYNC - non-blocking)
-    // These run in the background and don't block READ operations
+    // PHASE 2: Set up notifications for NOTIFY characteristics
+    // On Web: ALL subscriptions are fire-and-forget (don't wait for setNotifyValue)
+    // On native: wait for critical ones
     if (_temperatureChar != null) {
       _subscribeToCharacteristic(_temperatureChar!, _handleTemperatureUpdate);
     }
@@ -383,12 +415,37 @@ class BluetoothService extends ChangeNotifier {
     }
 
     if (_sessionIdChar != null) {
-      _subscribeToCharacteristic(_sessionIdChar!, _handleSessionIdUpdate);
+      // On Web: fire-and-forget (setNotifyValue is slow and unreliable)
+      // On native: wait for completion
+      if (kIsWeb) {
+        _subscribeToCharacteristic(_sessionIdChar!, _handleSessionIdUpdate);
+      } else {
+        await _subscribeToCharacteristicAndWait(_sessionIdChar!, _handleSessionIdUpdate);
+      }
     }
 
-    print('NOTIFY setup started (running in background). Reading initial values...');
+    // ✅ Mark device ready IMMEDIATELY - don't wait for anything else
+    _isDeviceReady = true;
+    notifyListeners();
+    print('✅ Device ready!');
 
-    // PHASE 3: Read initial values for READ/WRITE characteristics (SEQUENTIAL)
+    // PHASE 3: Read initial values (OPTIONAL - only on native, skip on Web)
+    // Web Bluetooth reads are very slow and often timeout
+    if (!kIsWeb) {
+      print('📖 Reading initial settings (background)...');
+      _readInitialSettingsInBackground();
+    } else {
+      print('📖 Skipping initial reads on Web (too slow)');
+    }
+  }
+
+  /// Read initial characteristic values in background (non-blocking)
+  /// Uses Future.wait for parallel reads - much faster than sequential
+  Future<void> _readInitialSettingsInBackground() async {
+    // Note: On Web Bluetooth, GATT operations are serialized anyway
+    // Running them "in parallel" just queues them up
+    // We run them sequentially with timeouts to avoid long hangs
+
     if (_brightnessChar != null) {
       await _readCharacteristic(_brightnessChar!, (value) {
         _brightnessData = value;
@@ -417,7 +474,7 @@ class BluetoothService extends ChangeNotifier {
       });
     }
 
-    print('✅ Characteristic setup completed - device ready to use!');
+    print('✅ Initial settings loaded');
   }
 
   /// Subscribe to characteristic notifications
@@ -446,15 +503,65 @@ class BluetoothService extends ChangeNotifier {
     }
     _characteristicSubscriptions.add(subscription);
 
-    // STEP 2: Enable notifications but DON'T WAIT (fire and forget)
-    // This avoids waiting for Arduino's descriptor write confirmation
-    char.setNotifyValue(true).then((_) {
-      print('✓ Notification enabled for ${char.uuid}');
-    }).catchError((e) {
-      print('⚠️ setNotifyValue warning for ${char.uuid}: $e (non-fatal, listener already active)');
-    });
+    // STEP 2: Enable notifications (required for BLE to send NOTIFY packets)
+    // Fire-and-forget with short timeout on Web
+    if (kIsWeb) {
+      // On Web: use very short timeout since setNotifyValue often hangs
+      char.setNotifyValue(true, timeout: 2).then((_) {
+        print('✓ Notification enabled for ${char.uuid}');
+      }).catchError((e) {
+        print('⚠️ setNotifyValue warning for ${char.uuid}: $e (non-fatal)');
+      });
+    } else {
+      char.setNotifyValue(true).then((_) {
+        print('✓ Notification enabled for ${char.uuid}');
+      }).catchError((e) {
+        print('⚠️ setNotifyValue warning for ${char.uuid}: $e (non-fatal)');
+      });
+    }
 
     print('✅ Listener set up for ${char.uuid}');
+  }
+
+  /// Subscribe to characteristic notifications AND wait for enable to complete
+  /// Use this for critical characteristics like SessionID
+  Future<void> _subscribeToCharacteristicAndWait(
+    fbp.BluetoothCharacteristic char,
+    Function(String) handler,
+  ) async {
+    // STEP 1: Set up the listener FIRST
+    final subscription = char.onValueReceived.listen(
+      (value) {
+        if (value.isNotEmpty) {
+          final strValue = utf8.decode(value);
+          handler(strValue);
+        }
+      },
+      onError: (error) {
+        print('⚠️ Error in ${char.uuid} stream: $error');
+      },
+    );
+
+    if (_connectedDevice != null) {
+      _connectedDevice!.cancelWhenDisconnected(subscription);
+    }
+    _characteristicSubscriptions.add(subscription);
+
+    // STEP 2: Enable notifications (required for BLE NOTIFY to work)
+    // Use shorter timeout on Web since it can be slow
+    final timeout = kIsWeb ? const Duration(seconds: 3) : const Duration(seconds: 5);
+    try {
+      await char.setNotifyValue(true).timeout(
+        timeout,
+        onTimeout: () {
+          print('⚠️ setNotifyValue timeout for ${char.uuid} (continuing anyway)');
+          return true;
+        },
+      );
+      print('✓ Notification enabled for ${char.uuid}');
+    } catch (e) {
+      print('⚠️ setNotifyValue error for ${char.uuid}: $e (continuing anyway)');
+    }
   }
 
   /// Read characteristic value with detailed logging
@@ -464,7 +571,14 @@ class BluetoothService extends ChangeNotifier {
   ) async {
     try {
       print('→ Reading ${char.uuid}...');
-      final value = await char.read();
+      // Add timeout to prevent long hangs on Web
+      final value = await char.read().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('⚠️ Read ${char.uuid}: timeout after 10s');
+          return <int>[];
+        },
+      );
 
       if (value.isNotEmpty) {
         final strValue = utf8.decode(value);
@@ -515,7 +629,7 @@ class BluetoothService extends ChangeNotifier {
   }
 
   void _handleSessionIdUpdate(String value) {
-    print('📥 Received SessionID notification: "$value"');
+    print('📥📥📥 Received SessionID notification: "$value" 📥📥📥');
     final trimmed = value.trim();
     final id = int.tryParse(trimmed);
     if (id != null) {
@@ -680,42 +794,105 @@ class BluetoothService extends ChangeNotifier {
     }
   }
 
+  /// Wait for device to be fully ready (characteristics discovered + notifications enabled)
+  Future<bool> _waitForDeviceReady({int timeoutMs = 15000}) async {
+    const pollMs = 100;
+    var elapsed = 0;
+    while (!_isDeviceReady && _connectedDevice != null && elapsed < timeoutMs) {
+      await Future.delayed(Duration(milliseconds: pollMs));
+      elapsed += pollMs;
+    }
+    return _isDeviceReady;
+  }
+
+  // Re-entrancy guard for startArduinoSession
+  bool _isStartingSession = false;
+
   /// Start a new session on Arduino
   Future<void> startArduinoSession() async {
-    if (_fileActionChar == null || _connectedDevice == null) {
-      print('⚠️ Cannot start session: missing characteristic or peripheral');
+    // Prevent duplicate calls
+    if (_isStartingSession) {
+      print('⚠️ Already starting session, ignoring duplicate call');
       return;
     }
+    _isStartingSession = true;
 
     try {
+      if (_connectedDevice == null) {
+        print('⚠️ Cannot start session: no connected peripheral');
+        return;
+      }
+
+      // Wait for device to be fully ready before starting session
+      if (!_isDeviceReady) {
+        print('⏳ Waiting for device to be ready...');
+        final ready = await _waitForDeviceReady(timeoutMs: 5000);  // Reduced from 15s
+        if (!ready) {
+          print('⚠️ Cannot start session: device not ready after 5s');
+          return;
+        }
+      }
+
+      if (_fileActionChar == null) {
+        print('⚠️ Cannot start session: missing fileAction characteristic');
+        return;
+      }
+
       // ✅ CLAUDE FIX: Clear old session ID before starting new session
       _sessionId = null;
       print('🧹 Cleared old session ID');
 
+      print('📤 Writing "START" to fileActionChar...');
       final data = utf8.encode(BluetoothConstants.cmdStart);
       await _fileActionChar!.write(data, withoutResponse: false);
+      print('✅ Write completed successfully');
       print('→ Sent "START" to Arduino');
 
-      // Poll for SessionID with timeout
-      // ✅ CLAUDE FIX: Increased timeout to 15 seconds for large number of files
-      // (First scan after Arduino boot may take 5-10s with 100+ files)
-      print('⏳ Waiting for SessionID...');
-      const maxWaitMs = 15000;  // Increased from 5000ms to 15000ms
-      const checkIntervalMs = 50;
-      int elapsedMs = 0;
+      // Wait a moment for Arduino to process and send SessionID
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Try direct read FIRST (more reliable on Web than notifications)
+      if (_sessionIdChar != null) {
+        print('📖 Trying direct read of SessionID...');
+        try {
+          final value = await _sessionIdChar!.read();
+          print('📖 Raw read value: $value');
+          if (value.isNotEmpty) {
+            final strValue = utf8.decode(value);
+            print('📖 Direct read SessionID string: "$strValue"');
+            final id = int.tryParse(strValue.trim());
+            if (id != null) {
+              _sessionId = id;
+              print('✅ Got SessionID from direct read: $id');
+            }
+          }
+        } catch (e) {
+          print('❌ Direct read failed: $e');
+        }
+      }
 
-      while (_sessionId == null && elapsedMs < maxWaitMs) {
-        await Future.delayed(const Duration(milliseconds: checkIntervalMs));
-        elapsedMs += checkIntervalMs;
+      // If direct read didn't work, wait for notification
+      if (_sessionId == null) {
+        print('⏳ Direct read failed, waiting for notification...');
+        const maxWaitMs = 5000;
+        const checkIntervalMs = 100;
+        int elapsedMs = 0;
+
+        while (_sessionId == null && elapsedMs < maxWaitMs) {
+          await Future.delayed(const Duration(milliseconds: checkIntervalMs));
+          elapsedMs += checkIntervalMs;
+        }
       }
 
       if (_sessionId != null) {
-        print('✅ SessionID received: $_sessionId (after ${elapsedMs}ms)');
+        print('✅ SessionID acquired: $_sessionId');
       } else {
-        print('❌ SessionID not received after ${maxWaitMs}ms timeout');
+        print('❌ SessionID not received (notification and read both failed)');
       }
     } catch (e) {
       print('Error starting session: $e');
+    } finally {
+      _isStartingSession = false;
     }
   }
 
@@ -741,6 +918,7 @@ class BluetoothService extends ChangeNotifier {
 
     _connectedDevice = null;
     _isConnected = false;
+    _isDeviceReady = false;
     _statusMessage = 'Disconnected';
 
     // Clear characteristic references
