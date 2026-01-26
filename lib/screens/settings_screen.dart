@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../services/bluetooth_service.dart';
 import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
-import 'arduino_file_import_screen.dart';
 import 'info_screen.dart';
 import 'login_screen.dart';
 
@@ -88,35 +87,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             // Account section
             _buildAccountCard(),
-
-            const SizedBox(height: 16),
-
-            // Arduino File Import
-            _buildCard(
-              child: ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.cloud_download, color: Colors.green.shade700),
-                ),
-                title: const Text(
-                  'Import from Arduino',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-                subtitle: const Text('Download sessions from device'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const ArduinoFileImportScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
 
             const SizedBox(height: 16),
 
