@@ -58,8 +58,8 @@ class BluetoothService extends ChangeNotifier {
   int? get sessionId => _sessionId;
 
   // Arduino file operations
-  final List<String> _arduinoFileList = [];
-  List<String> get arduinoFileList => List.unmodifiable(_arduinoFileList);
+  final List<Map<String, dynamic>> _arduinoFileList = [];
+  List<Map<String, dynamic>> get arduinoFileList => List.unmodifiable(_arduinoFileList);
 
   final List<String> _arduinoFileContentLines = [];
   List<String> get arduinoFileContentLines => List.unmodifiable(_arduinoFileContentLines);
@@ -604,12 +604,27 @@ class BluetoothService extends ChangeNotifier {
   void _handleFileNameUpdate(String value) {
     if (value != BluetoothConstants.markerEnd) {
       // Arduino sends format: "sid:filename:mins" (e.g., "0:data0.txt:5")
-      // We extract just the filename for compatibility
       final parts = value.split(':');
-      if (parts.length >= 2) {
-        _arduinoFileList.add(parts[1]); // Extract filename (e.g., "data0.txt")
+      if (parts.length >= 3) {
+        // Extract filename and duration
+        final filename = parts[1];
+        final durationMins = int.tryParse(parts[2]) ?? 0;
+        _arduinoFileList.add({
+          'filename': filename,
+          'durationMins': durationMins,
+        });
+      } else if (parts.length >= 2) {
+        // Fallback: just filename
+        _arduinoFileList.add({
+          'filename': parts[1],
+          'durationMins': 0,
+        });
       } else {
-        _arduinoFileList.add(value); // Fallback to original value
+        // Fallback: use raw value as filename
+        _arduinoFileList.add({
+          'filename': value,
+          'durationMins': 0,
+        });
       }
       notifyListeners();
     }

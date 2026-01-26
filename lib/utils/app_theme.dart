@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 /// App theme utilities
 /// Ported from ViewModifier.swift - applyBackgroundGradient()
 class AppTheme {
-  // App gradient colors
-  static const Color gradientStart = Color(0xFFE3F2FD); // Light blue
-  static const Color gradientEnd = Color(0xFFBBDEFB); // Lighter blue
+  // App gradient colors - now white
+  static const Color gradientStart = Colors.white;
+  static const Color gradientEnd = Colors.white;
 
-  // App gradient
+  // App gradient - solid white
   static const LinearGradient backgroundGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,

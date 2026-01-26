@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../services/bluetooth_service.dart';
 import '../providers/current_session_provider.dart';
@@ -43,14 +44,64 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     HapticFeedback.lightImpact();
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => const BluetoothConnectionScreen(),
-                    );
+                    // On Web: skip the device list screen, Chrome handles device selection
+                    if (kIsWeb) {
+                      // Start scan FIRST - this shows Chrome popup
+                      // The popup must appear before any Flutter dialogs
+                      await bluetoothService.startScan();
+                      
+                      // If not connected after scan, user cancelled the popup or already connected
+                      if (!bluetoothService.isConnected) {
+                        return;
+                      }
+                      
+                      // Show loading dialog while connecting/discovering services
+                      if (context.mounted) {
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (dialogContext) => WillPopScope(
+                            onWillPop: () async => false,
+                            child: AlertDialog(
+                              content: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(
+                                    color: Colors.blue.shade700,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  const Expanded(
+                                    child: Text('Connecting...'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      // Wait for device to be fully ready
+                      int waited = 0;
+                      while (!bluetoothService.isDeviceReady && waited < 10000) {
+                        await Future.delayed(const Duration(milliseconds: 100));
+                        waited += 100;
+                      }
+                      
+                      // Close loading dialog
+                      if (context.mounted && Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      }
+                    } else {
+                      // On native: show device list
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => const BluetoothConnectionScreen(),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white.withValues(alpha: 0.8),

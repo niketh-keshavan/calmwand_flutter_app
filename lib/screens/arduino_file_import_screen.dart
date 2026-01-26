@@ -165,7 +165,8 @@ class _ArduinoFileImportScreenState extends State<ArduinoFileImportScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: fileList.length,
                       itemBuilder: (context, index) {
-                        final fileName = fileList[index];
+                        final fileInfo = fileList[index];
+                        final fileName = fileInfo['filename'] as String;
                         final isCurrentlyImporting = _currentImportFile == fileName;
 
                         return Container(

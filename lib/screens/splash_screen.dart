@@ -69,39 +69,30 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: Container(
-          decoration: const BoxDecoration(
-            gradient: AppTheme.backgroundGradient,
-          ),
+          color: Colors.white,
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // App logo/icon
-                Icon(
-                  Icons.air,
-                  size: 100,
-                  color: Colors.blue.shade700,
-                ),
-                const SizedBox(height: 24),
-                // App name
-                Text(
-                  'Calmwand',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Tagline
-                Text(
-                  'Breathe. Relax. Focus.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.blue.shade700,
+                // Spinning app logo
+                RotationTransition(
+                  turns: Tween(begin: 0.0, end: 1.0).animate(_controller),
+                  child: Image.network(
+                    'icons/appstore.png',
+                    width: 100,
+                    height: 100,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback to icon if image not found
+                      return Icon(
+                        Icons.air,
+                        size: 100,
+                        color: Colors.blue.shade700,
+                      );
+                    },
                   ),
                 ),
               ],

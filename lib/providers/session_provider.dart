@@ -22,6 +22,11 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Public method to reload sessions from storage
+  Future<void> reloadSessions() async {
+    await _loadSessions();
+  }
+
   /// Save sessions to storage
   Future<void> _saveSessions() async {
     // Sanitize non-finite values before saving
