@@ -13,6 +13,7 @@ class SessionProvider extends ChangeNotifier {
   CloudSessionService? _cloudService;
   bool _isLoadingFromCloud = false;
   String? _lastFetchedForUserId; // Track which user we've fetched for
+  bool _isFetchInProgress = false; // Prevent concurrent fetches
 
   List<SessionModel> get sessionArray => List.unmodifiable(_sessionArray);
   bool get isLoadingFromCloud => _isLoadingFromCloud;
@@ -28,7 +29,6 @@ class SessionProvider extends ChangeNotifier {
     // If user is logged in and we haven't fetched for this user yet, fetch cloud sessions
     final currentUserId = service?.userId;
     if (service != null && service.isLoggedIn && currentUserId != null && _lastFetchedForUserId != currentUserId) {
-      _lastFetchedForUserId = currentUserId;
       fetchAndMergeCloudSessions();
     } else if (service == null || !service.isLoggedIn) {
       // User logged out, reset the tracking
@@ -42,6 +42,22 @@ class SessionProvider extends ChangeNotifier {
       print('⏭️ Skip cloud fetch: not logged in');
       return;
     }
+    
+    // Prevent duplicate fetches for same user
+    final currentUserId = _cloudService!.userId;
+    if (currentUserId != null && _lastFetchedForUserId == currentUserId) {
+      print('⏭️ Skip cloud fetch: already fetched for user $currentUserId');
+      return;
+    }
+    
+    // Prevent concurrent fetches
+    if (_isFetchInProgress) {
+      print('⏭️ Skip cloud fetch: fetch already in progress');
+      return;
+    }
+    
+    _isFetchInProgress = true;
+    _lastFetchedForUserId = currentUserId;
 
     _isLoadingFromCloud = true;
     notifyListeners();
@@ -98,6 +114,7 @@ class SessionProvider extends ChangeNotifier {
     } catch (e) {
       print('❌ Error fetching cloud sessions: $e');
     } finally {
+      _isFetchInProgress = false;
       _isLoadingFromCloud = false;
       notifyListeners();
     }
