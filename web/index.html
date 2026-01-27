@@ -33,6 +33,31 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    (function() {
+      const ua = navigator.userAgent || '';
+      const isMobileUA = /Mobi|Android|iPhone|iPad|iPod|Windows Phone|Opera Mini|IEMobile/i.test(ua);
+      const uaDataMobile = navigator.userAgentData && navigator.userAgentData.mobile === true;
+      const smallScreen = Math.max(screen.width || 0, screen.height || 0) < 900;
+      const blocked = uaDataMobile || isMobileUA || smallScreen;
+      if (blocked) {
+        document.documentElement.style.height = '100%';
+        document.body.style.margin = '0';
+        document.body.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;color:#222;padding:24px;text-align:center;">
+            <div>
+              <h2 style="margin:0 0 12px 0;font-weight:600">Desktop Required</h2>
+              <p style="margin:0;color:#444;">This web app is designed for laptops and desktop browsers. Please open this site on a desktop or laptop for the best experience.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+      const s = document.createElement('script');
+      s.src = 'flutter_bootstrap.js';
+      s.async = true;
+      document.head.appendChild(s);
+    })();
+  </script>
 </body>
 </html>

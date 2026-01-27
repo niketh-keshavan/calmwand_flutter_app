@@ -13,12 +13,10 @@ class HowToUseScreen extends StatelessWidget {
         title: const Text('How to Use Calmwand'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.blue.shade900,
+        foregroundColor: Colors.grey.shade900,
       ),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
+        color: Colors.grey.shade100,
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -60,23 +58,23 @@ class HowToUseScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
+                border: Border.all(color: Colors.grey.shade200),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.lightbulb_outline, color: Colors.blue.shade700),
+                      Icon(Icons.lightbulb_outline, color: Colors.grey.shade700),
                       const SizedBox(width: 8),
                       Text(
                         'Pro Tips',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade900,
+                          color: Colors.grey.shade900,
                         ),
                       ),
                     ],
@@ -111,9 +109,9 @@ class HowToUseScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [AppTheme.cardShadow],
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,13 +119,13 @@ class HowToUseScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
               size: 32,
-              color: Colors.blue.shade700,
+              color: Colors.grey.shade700,
             ),
           ),
           const SizedBox(width: 16),
@@ -140,7 +138,7 @@ class HowToUseScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade900,
+                    color: Colors.grey.shade900,
                   ),
                 ),
                 const SizedBox(height: 8),

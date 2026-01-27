@@ -1,1 +1,37 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"calmwand-flutter-app","appId":"1:811664595416:android:59f4948cb4fb9f11543aad","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"calmwand-flutter-app","configurations":{"android":"1:811664595416:android:59f4948cb4fb9f11543aad","ios":"1:811664595416:ios:e8e275a1afd5e213543aad","web":"1:811664595416:web:6bd29bec55e1b54a543aad"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "calmwand-flutter-app",
+          "appId": "1:811664595416:android:59f4948cb4fb9f11543aad",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "calmwand-flutter-app",
+          "configurations": {
+            "android": "1:811664595416:android:59f4948cb4fb9f11543aad",
+            "ios": "1:811664595416:ios:e8e275a1afd5e213543aad",
+            "web": "1:811664595416:web:6bd29bec55e1b54a543aad"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

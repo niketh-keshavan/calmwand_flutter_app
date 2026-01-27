@@ -32,104 +32,44 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
 
     final connectionLabel = _getConnectionLabel(bluetoothService);
 
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Connection button
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
-                child: ElevatedButton(
-                  onPressed: () async {
-                    HapticFeedback.lightImpact();
-                    // On Web: skip the device list screen, Chrome handles device selection
-                    if (kIsWeb) {
-                      // Start scan FIRST - this shows Chrome popup
-                      // The popup must appear before any Flutter dialogs
+    return Stack(
+      children: [
+        Scaffold(
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: AppTheme.backgroundGradient,
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // Connection button
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        HapticFeedback.lightImpact();
+                        // On Web: skip the device list screen, Chrome handles device selection
+                        if (kIsWeb) {
+                      // Start scan - this shows Chrome popup
+                      // Loading overlay will automatically show when device is found
+                      // (via isConnectingToDevice flag in BluetoothService)
                       await bluetoothService.startScan();
                       
-                      // If not connected after scan, user cancelled the popup or already connected
-                      if (!bluetoothService.isConnected) {
-                        return;
-                      }
-                      
-                      // Show loading dialog while connecting/discovering services
-                      if (context.mounted) {
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (dialogContext) => PopScope(
-                            canPop: false,
-                            child: AlertDialog(
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircularProgressIndicator(
-                                    color: Colors.blue.shade700,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  const Text(
-                                    'Connecting to Calmwand...',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Discovering services and characteristics',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                      // Show success message when device becomes ready
+                      if (context.mounted && bluetoothService.isDeviceReady) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                const Icon(Icons.check_circle, color: Colors.white),
+                                const SizedBox(width: 8),
+                                Text('Connected to ${bluetoothService.connectedDeviceName ?? "Calmwand"}'),
+                              ],
                             ),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 2),
                           ),
                         );
-                      }
-                      
-                      // Wait for device to be fully ready
-                      int waited = 0;
-                      while (!bluetoothService.isDeviceReady && waited < 15000) {
-                        await Future.delayed(const Duration(milliseconds: 100));
-                        waited += 100;
-                      }
-                      
-                      // Close loading dialog
-                      if (context.mounted && Navigator.of(context).canPop()) {
-                        Navigator.of(context).pop();
-                      }
-                      
-                      // Show success or error message
-                      if (context.mounted) {
-                        if (bluetoothService.isDeviceReady) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  const Icon(Icons.check_circle, color: Colors.white),
-                                  const SizedBox(width: 8),
-                                  Text('Connected to ${bluetoothService.connectedDeviceName ?? "Calmwand"}'),
-                                ],
-                              ),
-                              backgroundColor: Colors.green,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connection timed out. Please try again.'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        }
                       }
                     } else {
                       // On native: show device list
@@ -217,7 +157,15 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
           ),
         ),
       ),
-    );
+    ),
+    // Loading overlay when connecting to device on Web
+    if (kIsWeb && bluetoothService.isConnectingToDevice && !bluetoothService.isDeviceReady)
+      Container(
+        color: Colors.black54,
+        child: const _ConnectionLoadingOverlay(),
+      ),
+    ],
+  );
   }
 
   String _getConnectionLabel(BluetoothService service) {
@@ -458,5 +406,89 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
         _lastScore = null;
       });
     }
+  }
+}
+
+/// Loading overlay with spinning appstore.png icon
+class _ConnectionLoadingOverlay extends StatefulWidget {
+  const _ConnectionLoadingOverlay();
+
+  @override
+  State<_ConnectionLoadingOverlay> createState() => _ConnectionLoadingOverlayState();
+}
+
+class _ConnectionLoadingOverlayState extends State<_ConnectionLoadingOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Spinning appstore_trans.png icon
+          RotationTransition(
+            turns: _controller,
+            child: Image.network(
+              'icons/appstore_trans.png',
+              width: 120,
+              height: 120,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(
+                  Icons.spa,
+                  size: 120,
+                  color: Colors.white,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Connecting to Calmwand...',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Discovering services (This may take a few seconds)',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
