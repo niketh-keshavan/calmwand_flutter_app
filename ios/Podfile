@@ -51,6 +51,10 @@ post_install do |installer|
       
       # iOS deployment target consistency
       config.build_settings.delete 'IPHONEOS_DEPLOYMENT_TARGET'
+      
+      # Fix leveldb-library C++ build errors
+      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
     end
   end
 end
