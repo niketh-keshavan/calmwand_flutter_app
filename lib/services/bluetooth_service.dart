@@ -73,6 +73,10 @@ class BluetoothService extends ChangeNotifier {
   // Device ready state (set after all characteristics discovered and notifications enabled)
   bool _isDeviceReady = false;
   bool get isDeviceReady => _isDeviceReady;
+  
+  // Track when device is found and connection process starts (for showing loading overlay)
+  bool _isConnectingToDevice = false;
+  bool get isConnectingToDevice => _isConnectingToDevice;
 
   // Subscriptions
   StreamSubscription? _scanSubscription;
@@ -186,6 +190,12 @@ class BluetoothService extends ChangeNotifier {
           if (!_devices.any((d) => d.remoteId == result.device.remoteId)) {
             print('Found device: ${result.device.platformName} (${result.device.remoteId})');
             _devices.add(result.device);
+            
+            // On Web, set connecting flag immediately when device is found
+            // This allows UI to show loading overlay right away
+            if (kIsWeb) {
+              _isConnectingToDevice = true;
+            }
             notifyListeners();
           }
         }
@@ -439,6 +449,7 @@ class BluetoothService extends ChangeNotifier {
 
     // ✅ Mark device ready IMMEDIATELY - don't wait for anything else
     _isDeviceReady = true;
+    _isConnectingToDevice = false;  // Reset connecting flag
     notifyListeners();
     print('✅ Device ready!');
 
@@ -977,6 +988,7 @@ class BluetoothService extends ChangeNotifier {
     _connectedDevice = null;
     _isConnected = false;
     _isDeviceReady = false;
+    _isConnectingToDevice = false;
     _statusMessage = 'Disconnected';
 
     // Clear characteristic references
