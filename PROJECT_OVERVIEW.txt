@@ -1,0 +1,216 @@
+CalmWand Flutter App - Project Overview
+======================================
+
+This document provides a comprehensive overview of the CalmWand Flutter application, including its architecture, major files, and the functionality of each component. The CalmWand app is designed to connect with a custom hardware device via Bluetooth, guide users through meditation/breathing sessions, record temperature data, and provide analytics and history. The app supports web, Android, iOS, and desktop platforms.
+
+---
+
+1. High-Level Architecture
+-------------------------
+- **Flutter Frontend:** Cross-platform UI, state management, and business logic.
+- **Bluetooth LE Integration:** Communicates with CalmWand hardware for real-time data.
+- **Local Storage:** Persists session data and user settings on device.
+- **Cloud Sync:** Optionally syncs sessions to Firebase Firestore for backup and multi-device access.
+- **Arduino Firmware:** (See arduino/ directory) Runs on CalmWand hardware, handles sensors, BLE, and SD logging.
+
+---
+
+2. Key Directories and Files
+----------------------------
+
+### Root Files
+- **pubspec.yaml**: Declares dependencies, assets, and project metadata.
+- **README.md**: Project introduction and setup instructions.
+- **analysis_options.yaml**: Linting and code style rules.
+
+### `lib/` - Main Flutter App Code
+
+#### Entry Point
+- **main.dart**: App entry point. Sets up providers, themes, and routes. Initializes services and launches the home screen.
+
+#### Constants
+- **constants/bluetooth_constants.dart**: UUIDs and protocol constants for Bluetooth communication.
+
+#### Models
+- **models/session_model.dart**: Data structure for a meditation session (timestamps, temperature data, regression, score, etc.).
+- **models/user_settings_model.dart**: Stores user preferences (e.g., inhale/exhale times, brightness).
+
+#### Providers (State Management)
+- **providers/session_provider.dart**: Manages the list of sessions, CRUD operations, local/cloud sync, and regression/score calculations.
+- **providers/current_session_provider.dart**: Tracks the current active session (timer, temperature readings, etc.).
+- **providers/settings_provider.dart**: Manages user settings and preferences.
+
+#### Services
+- **services/bluetooth_service.dart**: Handles Bluetooth LE scanning, connection, and communication with CalmWand hardware. Reads/writes characteristics, manages session start/stop, and file import.
+- **services/cloud_session_service.dart**: Syncs sessions to Firebase Firestore. Handles upload, fetch, and delete for user sessions.
+- **services/preferences_service.dart**: Reads/writes user preferences to local storage.
+- **services/storage_service.dart**: Handles persistent storage of sessions and settings on device.
+- **services/auth_service.dart**: Manages user authentication (login, logout, user ID).
+
+#### Screens (UI Pages)
+- **screens/session_summary_screen.dart**: Main session interface. Start/end session, view timer, see live temperature readings, and session controls.
+- **screens/session_detail_screen.dart**: Detailed view of a single session. Shows temperature graph, session metrics, editable date, and comment.
+- **screens/session_history_screen.dart**: Session history and calendar. Shows last 7 days, full calendar, and session list. Allows navigation to session details.
+- **screens/session_calendar_screen.dart**: Full month-by-month calendar view. Highlights days with sessions, allows navigation to session details.
+- **screens/arduino_file_import_screen.dart**: UI for importing session files from CalmWand hardware via Bluetooth.
+- **screens/bluetooth_connection_screen.dart**: UI for scanning, connecting, and managing Bluetooth devices.
+- **screens/settings_screen.dart**: User settings (inhale/exhale time, brightness, motor strength, etc.).
+- **screens/how_to_use_screen.dart**: Instructions and tips for using CalmWand.
+- **screens/info_screen.dart**: App info, version, and feature explanations.
+- **screens/login_screen.dart**: User authentication UI.
+
+#### Widgets (Reusable UI Components)
+- **widgets/ten_minute_timer.dart**: Circular timer widget for session progress, with animated gradient arcs for each 10-minute cycle.
+- **widgets/temperature_plot.dart**: Plots temperature data as a scatter plot. Y-axis in °F, X-axis is time. Regression line is calculated but not shown to user.
+- **widgets/mini_graph_view.dart**: Small graph for quick session summaries.
+
+#### Utilities
+- **utils/app_theme.dart**: App-wide color schemes, gradients, and shadows.
+- **utils/csv_exporter.dart**: Exports session data to CSV for sharing or backup.
+- **utils/regression_calculator.dart**: Calculates exponential regression parameters and session score.
+
+---
+
+3. Major Functional Flows
+-------------------------
+
+### Bluetooth Session Flow
+- User connects to CalmWand device via Bluetooth.
+- Starts a session: timer begins, temperature readings are streamed from device.
+- Timer and temperature data are displayed live.
+- On session end, data is saved locally (and optionally to cloud).
+
+### Session History & Calendar
+- Sessions are listed in reverse chronological order.
+- Last 7 days are shown as a mini-calendar; full calendar view available.
+- Days with sessions are highlighted; user can tap to see session details.
+- Session date is editable and syncs to cloud.
+
+### Data Visualization
+- Each session shows a temperature vs. time plot (scatter, no regression line).
+- Session metrics: date, duration, score, temperature change, data points.
+
+### Cloud Sync
+- If logged in, sessions are uploaded to Firebase Firestore.
+- When session date is changed, the old cloud record is deleted and a new one is created.
+- Sessions can be fetched from cloud on login or device change.
+
+### Arduino Integration
+- The `arduino/` directory contains the firmware for CalmWand hardware.
+- Handles BLE, temperature sensor, vibration motor, SD logging, and file transfer.
+
+---
+
+4. Notable Features
+-------------------
+- **Bluetooth LE**: Robust device discovery, connection, and data transfer.
+- **Session Timer**: Animated, visually appealing timer with cycle tracking.
+- **Temperature Analytics**: Real-time and historical temperature data, with backend regression for scoring.
+- **Calendar**: Visualizes session consistency and progress.
+- **Cloud Sync**: Optional, privacy-respecting backup and multi-device support.
+- **Accessibility**: Large fonts, color contrast, and simple navigation.
+- **Cross-Platform**: Runs on web, iOS, Android, Windows, Mac, Linux.
+
+---
+
+5. File-by-File Functionality
+-----------------------------
+
+### lib/main.dart
+- App entry point. Sets up providers, themes, and routes. Handles initial service setup and launches the home screen.
+
+### lib/constants/bluetooth_constants.dart
+- Contains UUIDs and protocol constants for BLE communication with CalmWand hardware.
+
+### lib/models/session_model.dart
+- Defines the structure of a session: session number, duration, temperature data, regression parameters, score, comment, and timestamp.
+
+### lib/models/user_settings_model.dart
+- Stores user preferences such as inhale/exhale time, brightness, and motor strength.
+
+### lib/providers/session_provider.dart
+- Manages the list of all sessions. Handles adding, updating, deleting, and syncing sessions. Calculates regression and score. Handles cloud sync and local storage.
+
+### lib/providers/current_session_provider.dart
+- Tracks the current active session, including timer, temperature readings, and session state.
+
+### lib/providers/settings_provider.dart
+- Manages user settings and preferences, and persists them locally.
+
+### lib/services/bluetooth_service.dart
+- Handles all Bluetooth LE operations: scanning, connecting, reading/writing characteristics, starting/stopping sessions, and file import/export with CalmWand hardware.
+
+### lib/services/cloud_session_service.dart
+- Handles syncing sessions to Firebase Firestore. Uploads, fetches, and deletes sessions for the logged-in user.
+
+### lib/services/preferences_service.dart
+- Reads and writes user preferences to local storage.
+
+### lib/services/storage_service.dart
+- Handles persistent storage of sessions and settings on the device.
+
+### lib/services/auth_service.dart
+- Manages user authentication, login/logout, and user ID.
+
+### lib/screens/session_summary_screen.dart
+- Main session interface. Allows user to start/end a session, view timer, see live temperature readings, and control session parameters.
+
+### lib/screens/session_detail_screen.dart
+- Shows detailed information for a single session: temperature plot, session metrics, editable date, and comment. Allows date editing and cloud sync.
+
+### lib/screens/session_history_screen.dart
+- Displays session history, last 7 days mini-calendar, and session list. Allows navigation to session details and full calendar.
+
+### lib/screens/session_calendar_screen.dart
+- Full month-by-month calendar view. Highlights days with sessions, allows navigation to session details, and shows session counts per day.
+
+### lib/screens/arduino_file_import_screen.dart
+- UI for importing session files from CalmWand hardware via Bluetooth.
+
+### lib/screens/bluetooth_connection_screen.dart
+- UI for scanning, connecting, and managing Bluetooth devices.
+
+### lib/screens/settings_screen.dart
+- User settings for inhale/exhale time, brightness, and motor strength.
+
+### lib/screens/how_to_use_screen.dart
+- Instructions and tips for using CalmWand.
+
+### lib/screens/info_screen.dart
+- App info, version, and feature explanations.
+
+### lib/screens/login_screen.dart
+- User authentication UI.
+
+### lib/widgets/ten_minute_timer.dart
+- Circular timer widget for session progress, with animated gradient arcs for each 10-minute cycle.
+
+### lib/widgets/temperature_plot.dart
+- Plots temperature data as a scatter plot. Y-axis in °F, X-axis is time. Regression line is calculated but not shown to user.
+
+### lib/widgets/mini_graph_view.dart
+- Small graph for quick session summaries.
+
+### lib/utils/app_theme.dart
+- App-wide color schemes, gradients, and shadows.
+
+### lib/utils/csv_exporter.dart
+- Exports session data to CSV for sharing or backup.
+
+### lib/utils/regression_calculator.dart
+- Calculates exponential regression parameters and session score.
+
+### arduino/CalmWand_Lastest__6_2_copy_20260123132132.ino
+- Arduino firmware for CalmWand hardware. Handles BLE, temperature sensor, vibration motor, SD logging, and file transfer. Implements session logic, vibration timing, and BLE protocol.
+
+---
+
+6. Extensibility & Customization
+-------------------------------
+- The app is modular and can be extended with new features (e.g., guided meditations, reminders, more analytics).
+- The backend and BLE protocol can be adapted for new hardware features.
+- The UI is designed for accessibility and cross-platform use.
+
+---
+
+For more details, see the code comments in each file or contact the CalmWand development team.

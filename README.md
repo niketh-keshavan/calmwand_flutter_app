@@ -70,6 +70,14 @@ firebase deploy --only hosting --token "$FIREBASE_TOKEN"
 
 Open an issue or submit a PR. For deployment automation, I can add a GitHub Actions workflow that builds and deploys the web build to Firebase when you want.
 
+## Project Overview
+
+For a comprehensive explanation of the entire CalmWand app, including architecture, file-by-file functionality, and major flows, see the new file:
+
+- `PROJECT_OVERVIEW.txt`
+
+This document provides detailed descriptions of every major file and feature in the project.
+
 ---
 
 Updated: January 27, 2026
