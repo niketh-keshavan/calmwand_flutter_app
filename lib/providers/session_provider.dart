@@ -249,6 +249,36 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  /// Update a session when its timestamp changes (requires deleting old cloud doc)
+  Future<void> updateSessionWithTimestampChange({
+    required DateTime oldTimestamp,
+    required SessionModel updatedSession,
+  }) async {
+    // Find session by sessionNumber and OLD timestamp
+    final index = _sessionArray.indexWhere((s) => 
+      s.sessionNumber == updatedSession.sessionNumber && 
+      s.timestamp == oldTimestamp
+    );
+    
+    if (index >= 0) {
+      // Create a reference to the old session for cloud deletion
+      final oldSession = _sessionArray[index];
+      
+      // Update local array
+      _sessionArray[index] = updatedSession;
+      notifyListeners();
+      await _saveSessions();
+      
+      // Handle cloud sync - need to delete old doc and create new one
+      if (_cloudService != null && _cloudService!.isLoggedIn) {
+        // Delete old document (with old timestamp)
+        await _cloudService!.deleteSession(oldSession);
+        // Create new document (with new timestamp)
+        await _cloudService!.saveSession(updatedSession);
+      }
+    }
+  }
+
   /// Update session comment
   Future<void> updateSessionComment(int index, String comment) async {
     if (index >= 0 && index < _sessionArray.length) {

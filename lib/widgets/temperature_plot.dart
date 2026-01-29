@@ -73,7 +73,7 @@ class TemperaturePlot extends StatelessWidget {
       titlesData: FlTitlesData(
         leftTitles: AxisTitles(
           axisNameWidget: const Text(
-            'Temperature (°C)',
+            'Temperature (°F)',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
           sideTitles: SideTitles(
@@ -142,7 +142,7 @@ class TemperaturePlot extends StatelessWidget {
               if (spot.barIndex == 0) {
                 // Actual temperature point
                 return LineTooltipItem(
-                  'Time: ${spot.x.toInt()}s\nTemp: ${spot.y.toStringAsFixed(2)}°C',
+                  'Time: ${spot.x.toInt()}s\nTemp: ${spot.y.toStringAsFixed(2)}°F',
                   const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -152,7 +152,7 @@ class TemperaturePlot extends StatelessWidget {
               } else {
                 // Regression curve point
                 return LineTooltipItem(
-                  'Regression: ${spot.y.toStringAsFixed(2)}°C',
+                  'Regression: ${spot.y.toStringAsFixed(2)}°F',
                   const TextStyle(
                     color: Colors.white,
                     fontSize: 12,

@@ -66,6 +66,7 @@ float BreathCycleTime = InbreathTime + OutbreathTime;
 
 bool vibration = 0;
 unsigned long vibration_start = 0;
+unsigned long lastVibrationEndTime = 0;
 int no_vibration_count = 0;
 int NumberOfLedsOn = 0;
 int previous_num_led_on = 0;
@@ -515,7 +516,8 @@ void loop() {
     int currentLedIndex = color1_index * 6 + NumberOfLedsOn;
     
     if ((NumberOfLedsOn > previous_num_led_on || (NumberOfLedsOn == 0 && previous_num_led_on == 5)) 
-        && vibration_progress[currentLedIndex] == 0) {
+        && vibration_progress[currentLedIndex] == 0
+        && (currentMillis - lastVibrationEndTime >= 5000)) {
       vibration = 1;
       vibration_start = currentMillis;
       for (int i = 0; i <= currentLedIndex; i++) { vibration_progress[i] = 1; }
@@ -534,7 +536,8 @@ void loop() {
     if (vibration) {
       analogWrite(motor_pin, MotorStrength);
       if (currentMillis - vibration_start > 300) { 
-        vibration = 0; 
+        vibration = 0;
+        lastVibrationEndTime = currentMillis;
       }
     } else {
       analogWrite(motor_pin, 0);

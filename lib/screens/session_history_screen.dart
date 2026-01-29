@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/session_provider.dart';
 import '../services/bluetooth_service.dart';
-import '../services/preferences_service.dart';
 import '../services/storage_service.dart';
 import '../services/cloud_session_service.dart';
 import '../models/session_model.dart';
 import '../utils/app_theme.dart';
 import 'session_detail_screen.dart';
+import 'session_calendar_screen.dart';
 
 /// Session history screen
 /// Ported from SessionHistoryView.swift
@@ -19,7 +19,6 @@ class SessionHistoryScreen extends StatefulWidget {
 }
 
 class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
-  int _weeklyGoal = 7;
   bool _showArduinoSessions = false;
   bool _isLoadingArduinoSessions = false;
   bool _isImportingSession = false;
@@ -31,7 +30,6 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _weeklyGoal = PreferencesService.getWeeklyGoal();
   }
 
   Future<void> _fetchArduinoSessions() async {
@@ -254,8 +252,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         ),
         child: Column(
           children: [
-            // Weekly goal card
-            _buildWeeklyGoalCard(sessions.length),
+            // 7-day calendar card
+            _buildWeekCalendarCard(sessions),
 
             // Arduino sessions section
             _buildArduinoSessionsCard(bluetoothService),
@@ -503,10 +501,24 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     );
   }
 
-  Widget _buildWeeklyGoalCard(int sessionCount) {
-    final progress = sessionCount >= _weeklyGoal
-        ? 1.0
-        : sessionCount / _weeklyGoal.toDouble();
+  Widget _buildWeekCalendarCard(List<SessionModel> sessions) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // Create a set of dates that have sessions
+    final sessionDates = <DateTime>{};
+    for (final session in sessions) {
+      sessionDates.add(DateTime(
+        session.timestamp.year,
+        session.timestamp.month,
+        session.timestamp.day,
+      ));
+    }
+    
+    // Generate last 7 days
+    final last7Days = List.generate(7, (index) {
+      return today.subtract(Duration(days: 6 - index));
+    });
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -523,83 +535,148 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Weekly Session Goal',
+                'Last 7 Days',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.brown.shade700,
                 ),
               ),
-              Text(
-                '$_weeklyGoal sessions',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SessionCalendarScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.calendar_month, size: 18),
+                label: const Text('See All'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.blue.shade700,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
 
-          // Slider
-          Slider(
-            value: _weeklyGoal.toDouble(),
-            min: 1,
-            max: 21,
-            divisions: 20,
-            activeColor: Colors.blue,
-            onChanged: (value) {
-              setState(() {
-                _weeklyGoal = value.toInt();
-              });
-              PreferencesService.setWeeklyGoal(_weeklyGoal);
-            },
+          // 7-day calendar row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: last7Days.map((date) {
+              final hasSession = sessionDates.contains(date);
+              final isToday = date == today;
+              
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SessionCalendarScreen(),
+                    ),
+                  );
+                },
+                child: Column(
+                  children: [
+                    Text(
+                      _getWeekdayAbbr(date.weekday),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isToday ? Colors.blue.shade700 : Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: hasSession 
+                            ? Colors.green.shade400 
+                            : (isToday ? Colors.blue.shade50 : Colors.grey.shade100),
+                        shape: BoxShape.circle,
+                        border: isToday 
+                            ? Border.all(color: Colors.blue.shade400, width: 2)
+                            : null,
+                      ),
+                      child: Center(
+                        child: hasSession
+                            ? const Icon(Icons.check, color: Colors.white, size: 20)
+                            : Text(
+                                '${date.day}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                  color: isToday ? Colors.blue.shade700 : Colors.grey.shade700,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
 
-          // Progress bar
-          Container(
-            height: 12,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.blue, Colors.green],
-                  ),
-                  borderRadius: BorderRadius.circular(6),
+          // Summary text
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _getSessionCountLastWeek(sessionDates, today) > 0 
+                    ? Icons.emoji_events 
+                    : Icons.info_outline,
+                color: _getSessionCountLastWeek(sessionDates, today) > 0 
+                    ? Colors.amber 
+                    : Colors.grey,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _getWeeklySummaryText(sessionDates, today),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
                 ),
               ),
-            ),
+            ],
           ),
-
-          const SizedBox(height: 12),
-
-          // Goal reached message
-          if (sessionCount >= _weeklyGoal)
-            const Row(
-              children: [
-                Icon(Icons.celebration, color: Colors.amber, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  '🎉 Goal reached!',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
         ],
       ),
     );
+  }
+
+  String _getWeekdayAbbr(int weekday) {
+    const abbrs = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return abbrs[weekday - 1];
+  }
+
+  int _getSessionCountLastWeek(Set<DateTime> sessionDates, DateTime today) {
+    int count = 0;
+    for (int i = 0; i < 7; i++) {
+      final date = today.subtract(Duration(days: i));
+      if (sessionDates.contains(date)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  String _getWeeklySummaryText(Set<DateTime> sessionDates, DateTime today) {
+    final count = _getSessionCountLastWeek(sessionDates, today);
+    if (count == 0) {
+      return 'No sessions this week';
+    } else if (count == 1) {
+      return '1 session this week';
+    } else if (count == 7) {
+      return 'Perfect week! 🎉';
+    } else {
+      return '$count sessions this week';
+    }
   }
 
   Widget _buildSessionCard(session) {
