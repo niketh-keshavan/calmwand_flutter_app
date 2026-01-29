@@ -20,18 +20,18 @@ class TenMinuteTimer extends StatelessWidget {
   // Fraction (0.0-1.0) of the current cycle that has elapsed
   double get fraction => (timeElapsed % totalDuration) / totalDuration;
 
-  // Gradient for even cycles
-  Gradient get gradientEven => const LinearGradient(
+  // Gradient for even cycles (Angular gradient like SwiftUI)
+  Gradient get gradientEven => const SweepGradient(
         colors: [Color(0xFF42A5F5), Color(0xFF9C27B0)], // Blue to Purple
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        startAngle: -math.pi / 2, // Start at top (-90 degrees)
+        endAngle: 3 * math.pi / 2, // End at top (270 degrees)
       );
 
-  // Gradient for odd cycles
-  Gradient get gradientOdd => const LinearGradient(
+  // Gradient for odd cycles (Angular gradient like SwiftUI)
+  Gradient get gradientOdd => const SweepGradient(
         colors: [Color(0xFF66BB6A), Color(0xFF26C6DA)], // Green to Teal
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        startAngle: -math.pi / 2, // Start at top (-90 degrees)
+        endAngle: 3 * math.pi / 2, // End at top (270 degrees)
       );
 
   // Current gradient based on cycle count
@@ -46,50 +46,24 @@ class TenMinuteTimer extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Background track
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.grey.withValues(alpha: 0.3),
-                width: 10,
-              ),
-            ),
-          ),
-
           // Draw complete cycles
           for (int i = 0; i < fullCycles; i++)
-            Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  width: 10,
-                  color: Colors.transparent,
-                ),
-                gradient: i % 2 == 0
-                    ? const SweepGradient(
-                        colors: [Color(0xFF42A5F5), Color(0xFF9C27B0)],
-                        startAngle: -math.pi / 2,
-                        endAngle: 3 * math.pi / 2,
-                      )
-                    : const SweepGradient(
-                        colors: [Color(0xFF66BB6A), Color(0xFF26C6DA)],
-                        startAngle: -math.pi / 2,
-                        endAngle: 3 * math.pi / 2,
-                      ),
+            CustomPaint(
+              size: const Size(200, 200),
+              painter: _FullCyclePainter(
+                gradient: i % 2 == 0 ? gradientEven : gradientOdd,
               ),
             ),
 
-          // Current partial cycle
-          CustomPaint(
-            size: const Size(200, 200),
-            painter: _TimerArcPainter(
-              fraction: fraction,
-              gradient: currentGradient,
+          // Current partial cycle with animation
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            child: CustomPaint(
+              size: const Size(200, 200),
+              painter: _TimerArcPainter(
+                fraction: fraction,
+                gradient: currentGradient,
+              ),
             ),
           ),
 
@@ -148,5 +122,35 @@ class _TimerArcPainter extends CustomPainter {
   @override
   bool shouldRepaint(_TimerArcPainter oldDelegate) {
     return oldDelegate.fraction != fraction;
+  }
+}
+
+/// Custom painter for full complete cycles
+class _FullCyclePainter extends CustomPainter {
+  final Gradient gradient;
+
+  _FullCyclePainter({
+    required this.gradient,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final paint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+
+    // Draw full circle
+    canvas.drawCircle(center, radius, paint);
+  }
+
+  @override
+  bool shouldRepaint(_FullCyclePainter oldDelegate) {
+    return false; // Full cycles don't change once drawn
   }
 }

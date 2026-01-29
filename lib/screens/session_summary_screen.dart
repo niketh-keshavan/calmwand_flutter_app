@@ -8,6 +8,7 @@ import '../providers/session_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/app_theme.dart';
 import '../widgets/mini_graph_view.dart';
+import '../widgets/ten_minute_timer.dart';
 import 'bluetooth_connection_screen.dart';
 
 /// Session summary screen - main session interface
@@ -192,36 +193,7 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         // Timer display
-        Container(
-          width: 200,
-          height: 200,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [Colors.blue.shade400, Colors.purple.shade400],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.purple.withValues(alpha: 0.4),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              '${session.timeElapsed ~/ 60} min',
-              style: const TextStyle(
-                fontSize: 40,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-        ),
+        TenMinuteTimer(timeElapsed: session.timeElapsed),
         const SizedBox(height: 20),
         // Temperature readings count
         Text(
