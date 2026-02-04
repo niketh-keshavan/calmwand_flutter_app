@@ -27,6 +27,7 @@ android {
         applicationId = "com.example.calmwand_flutter_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // Lowered minSdk from flutter-managed value to support API 22 devices.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
