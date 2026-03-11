@@ -23,9 +23,15 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   bool _isLoadingArduinoSessions = false;
   bool _isImportingSession = false;
   String? _importingFileName;
-  
-  // Store Arduino file info: {filename: {sid, mins}}
+
   final List<Map<String, dynamic>> _arduinoSessions = [];
+
+  // ---JOSEPHINES ADDITION START---
+  static const Color _softBlue = Color(0xFF89B4D4);
+  static const Color _softPurple = Color(0xFFB39DDB);
+  static const Color _softGreen = Color(0xFF81C784);
+  static const Color _softAmber = Color(0xFFFFCC80);
+  // ---JOSEPHINES ADDITION END---
 
   @override
   void initState() {
@@ -34,10 +40,23 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
   Future<void> _fetchArduinoSessions() async {
     final bluetoothService = context.read<BluetoothService>();
-    
+
     if (!bluetoothService.isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connect to Calmwand first')),
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.bluetooth_disabled, color: Colors.white, size: 16),
+              SizedBox(width: 8),
+              Text('Connect to Calmwand first'),
+            ],
+          ),
+          backgroundColor: _softPurple,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       );
       return;
     }
@@ -47,19 +66,13 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
       _arduinoSessions.clear();
     });
 
-    // Request file list from Arduino
     await bluetoothService.requestArduinoFileList();
 
-    // Wait for file list to be received (with timeout)
     int waitedMs = 0;
     while (waitedMs < 5000) {
       await Future.delayed(const Duration(milliseconds: 100));
       waitedMs += 100;
-      
-      // Check if we've received END marker (list complete)
-      // The list should stop updating when complete
       if (bluetoothService.arduinoFileList.isNotEmpty) {
-        // Wait a bit more to ensure we got all files
         await Future.delayed(const Duration(milliseconds: 500));
         break;
       }
@@ -72,11 +85,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   }
 
   Future<void> _importArduinoSession(String filename, int sessionId) async {
-    // Prevent concurrent imports
-    if (_isImportingSession) {
-      print('Import already in progress, ignoring request for $filename');
-      return;
-    }
+    if (_isImportingSession) return;
 
     final bluetoothService = context.read<BluetoothService>();
     final sessionProvider = context.read<SessionProvider>();
@@ -86,68 +95,41 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
       _importingFileName = filename;
     });
 
-    print('Importing session $sessionId from $filename');
-
-    // Request file content (Arduino expects uppercase)
     await bluetoothService.requestArduinoFile(filename.toUpperCase());
 
-    // Wait for file content to be received (with timeout)
-    // Also check for stalled transfer (EOF packet may be lost over BLE)
     int waitedMs = 0;
-    int lastLineCount = 0;
     while (!bluetoothService.fileContentTransferCompleted && waitedMs < 30000) {
       await Future.delayed(const Duration(milliseconds: 100));
       waitedMs += 100;
-      
-      // Check if transfer is stalled (no new data for 3+ seconds after receiving some data)
+
       if (bluetoothService.isFileTransferStalled()) {
-        print('⚠️ File transfer stalled - EOF likely lost, proceeding with received data');
         bluetoothService.markFileTransferComplete();
         break;
       }
-      
-      // Log progress every 5 seconds
-      final currentCount = bluetoothService.arduinoFileContentLines.length;
-      if (waitedMs % 5000 == 0 && currentCount > 0) {
-        print('Transfer in progress: $currentCount lines received...');
-      }
-      lastLineCount = currentCount;
     }
 
-    if (bluetoothService.fileContentTransferCompleted || bluetoothService.arduinoFileContentLines.isNotEmpty) {
-      // Parse the file content into a session
+    if (bluetoothService.fileContentTransferCompleted ||
+        bluetoothService.arduinoFileContentLines.isNotEmpty) {
       final lines = bluetoothService.arduinoFileContentLines;
       final temperatures = <double>[];
 
       for (final line in lines) {
-        // File format: "timestamp temperature" (space-separated)
-        // e.g., "3028 6567.00" -> temperature is 6567.00 / 100 = 65.67°F
         final parts = line.trim().split(RegExp(r'\s+'));
         if (parts.length >= 2) {
           final temp = double.tryParse(parts[1]);
-          if (temp != null && temp > 100) {  // Skip invalid readings (temp should be > 100 when multiplied by 100)
-            temperatures.add(temp / 100.0); // Convert back to degrees
-          }
+          if (temp != null && temp > 100) temperatures.add(temp / 100.0);
         } else {
-          // Fallback: try parsing as single value
           final temp = double.tryParse(line.trim());
-          if (temp != null && temp > 100) {
-            temperatures.add(temp / 100.0);
-          }
+          if (temp != null && temp > 100) temperatures.add(temp / 100.0);
         }
       }
 
       if (temperatures.isNotEmpty) {
-        // Calculate temperature change
-        final tempChange = temperatures.isNotEmpty && temperatures.length > 1
+        final tempChange = temperatures.length > 1
             ? temperatures.last - temperatures.first
             : 0.0;
-
-        // Arduino records data approximately every 1 second
-        // Duration = number of readings (in seconds)
         final durationSeconds = temperatures.length;
-        
-        // Create session without regression (Arduino data doesn't need fancy analysis)
+
         final session = SessionModel(
           sessionNumber: sessionId,
           duration: durationSeconds,
@@ -156,52 +138,56 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
           inhaleTime: 4.5,
           exhaleTime: 9.0,
         );
-        
-        // Add directly to storage and reload
-        print('Saving session $sessionId with ${temperatures.length} readings');
+
         await StorageService.addSession(session);
-        
-        // Sync to cloud if logged in (with timeout to prevent hanging)
+
         try {
           final cloudService = context.read<CloudSessionService>();
           if (cloudService.isLoggedIn) {
-            print('Syncing to cloud...');
-            await cloudService.saveSession(session).timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                print('Cloud sync timed out');
-                return false;
-              },
-            );
-            print('Cloud sync complete');
+            await cloudService
+                .saveSession(session)
+                .timeout(const Duration(seconds: 10), onTimeout: () => false);
           }
         } catch (e) {
           print('Cloud sync failed: $e');
         }
-        
-        // Reload sessions from storage to update the UI
-        print('Reloading sessions...');
+
         await sessionProvider.reloadSessions();
-        
-        print('Session saved and list updated');
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Imported session $sessionId (${durationSeconds ~/ 60} min)')),
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Imported session $sessionId (${durationSeconds ~/ 60} min)',
+                  ),
+                ],
+              ),
+              backgroundColor: _softGreen,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           );
         }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No temperature data found in session')),
+            const SnackBar(
+              content: Text('No temperature data found in session'),
+            ),
           );
         }
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Import timed out')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Import timed out')));
       }
     }
 
@@ -213,12 +199,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
   Future<void> _deleteArduinoSession(String filename) async {
     final bluetoothService = context.read<BluetoothService>();
-    
     await bluetoothService.deleteArduinoSession(filename);
-    
-    // Refresh the list
     await _fetchArduinoSessions();
-    
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Deleted $filename from Calmwand')),
@@ -233,71 +215,79 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     final sessions = sessionProvider.sessionArray;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Session History'),
+        title: const Text(
+          'Session History',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF5C6BC0),
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.blue.shade900,
+        foregroundColor: const Color(0xFF5C6BC0),
+        iconTheme: const IconThemeData(color: Color(0xFF5C6BC0)),
         actions: [
           if (sessions.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete),
+              icon: const Icon(Icons.delete_outline),
+              color: Colors.red.shade300,
               onPressed: () => _showClearConfirmation(context, sessionProvider),
             ),
         ],
       ),
       body: Container(
         decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFDCEEFA), Color(0xFFEDE7F6), Color(0xFFF1F8E9)],
+          ),
         ),
         child: Column(
           children: [
-            // 7-day calendar card
             _buildWeekCalendarCard(sessions),
-
-            // Arduino sessions section
             _buildArduinoSessionsCard(bluetoothService),
-
-            const SizedBox(height: 16),
-
-            // Session list
+            const SizedBox(height: 12),
+            if (sessions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 4,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: _softPurple.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('📋', style: TextStyle(fontSize: 14)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${sessions.length} Session${sessions.length == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF5C6BC0),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
             Expanded(
               child: sessions.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.history,
-                            size: 64,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No sessions yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Start a session to see it here',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
+                  ? _buildEmptyState()
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: sessions.length,
                       itemBuilder: (context, index) {
                         final reversedIndex = sessions.length - 1 - index;
                         final session = sessions[reversedIndex];
-
                         return Dismissible(
                           key: Key(session.sessionNumber.toString()),
                           direction: DismissDirection.endToStart,
@@ -306,8 +296,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.only(right: 20),
                             decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.red.shade300,
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(
                               Icons.delete,
@@ -328,14 +318,67 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     );
   }
 
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.75),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: _softPurple.withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🌿', style: TextStyle(fontSize: 52)),
+              const SizedBox(height: 16),
+              const Text(
+                'No sessions yet',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF5C6BC0),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Complete your first session to\nsee your history here',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildArduinoSessionsCard(BluetoothService bluetoothService) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [AppTheme.cardShadow],
+        color: Colors.white.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: _softBlue.withValues(alpha: 0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,53 +388,87 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.sd_card,
-                    color: bluetoothService.isConnected ? Colors.green : Colors.grey,
-                    size: 20,
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: bluetoothService.isConnected
+                          ? _softGreen.withValues(alpha: 0.2)
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Icon(
+                      Icons.sd_card_outlined,
+                      color: bluetoothService.isConnected
+                          ? _softGreen
+                          : Colors.grey.shade400,
+                      size: 18,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
+                  const SizedBox(width: 10),
+                  const Text(
                     'Calmwand Sessions',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade800,
+                      color: Color(0xFF5C6BC0),
                     ),
                   ),
                 ],
               ),
-              ElevatedButton.icon(
-                onPressed: _isLoadingArduinoSessions ? null : _fetchArduinoSessions,
-                icon: _isLoadingArduinoSessions
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh, size: 18),
-                label: Text(_isLoadingArduinoSessions ? 'Loading...' : 'Fetch'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              GestureDetector(
+                onTap: _isLoadingArduinoSessions ? null : _fetchArduinoSessions,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _softBlue.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _isLoadingArduinoSessions
+                          ? SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: _softBlue,
+                              ),
+                            )
+                          : Icon(
+                              Icons.refresh_rounded,
+                              size: 16,
+                              color: _softBlue,
+                            ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _isLoadingArduinoSessions ? 'Loading...' : 'Fetch',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _softBlue,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          
           if (_showArduinoSessions) ...[
             const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 8),
-            
+            Divider(color: Colors.grey.shade200, height: 1),
+            const SizedBox(height: 10),
             if (bluetoothService.arduinoFileList.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Center(
                   child: Text(
                     'No sessions on device',
-                    style: TextStyle(color: Colors.grey.shade600),
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
                   ),
                 ),
               )
@@ -401,74 +478,132 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                 child: ListView(
                   shrinkWrap: true,
                   children: bluetoothService.arduinoFileList
-                    .where((fileInfo) {
-                      // Only show files matching dataN.txt (case-insensitive)
-                      final filename = fileInfo['filename'] as String;
-                      return RegExp(r'^data\d+\.txt$', caseSensitive: false).hasMatch(filename.toLowerCase());
-                    })
-                    .map((fileInfo) {
-                final filename = fileInfo['filename'] as String;
-                final durationMins = fileInfo['durationMins'] as int;
-                
-                // Extract session ID from filename (e.g., "data5.txt" or "DATA5.TXT" -> 5)
-                final match = RegExp(r'data(\d+)\.txt', caseSensitive: false).firstMatch(filename.toLowerCase());
-                final sessionId = match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
-                final isImporting = _isImportingSession && _importingFileName == filename;
-                
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.insert_drive_file, color: Colors.blue.shade300, size: 24),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Session $sessionId',
-                              style: const TextStyle(fontWeight: FontWeight.w500),
+                      .where((fileInfo) {
+                        final filename = fileInfo['filename'] as String;
+                        return RegExp(
+                          r'^data\d+\.txt$',
+                          caseSensitive: false,
+                        ).hasMatch(filename.toLowerCase());
+                      })
+                      .map((fileInfo) {
+                        final filename = fileInfo['filename'] as String;
+                        final durationMins = fileInfo['durationMins'] as int;
+                        final match = RegExp(
+                          r'data(\d+)\.txt',
+                          caseSensitive: false,
+                        ).firstMatch(filename.toLowerCase());
+                        final sessionId = match != null
+                            ? int.tryParse(match.group(1)!) ?? 0
+                            : 0;
+                        final isImporting =
+                            _isImportingSession &&
+                            _importingFileName == filename;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F6FB),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _softBlue.withValues(alpha: 0.2),
+                              width: 1,
                             ),
-                            if (durationMins > 0)
-                              Text(
-                                '~$durationMins min (estimated)',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: _softBlue.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.insert_drive_file_outlined,
+                                  color: _softBlue,
+                                  size: 20,
+                                ),
                               ),
-                            Text(
-                              filename,
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (isImporting)
-                        const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      else ...[
-                        IconButton(
-                          icon: const Icon(Icons.download, color: Colors.green),
-                          onPressed: _isImportingSession ? null : () => _importArduinoSession(filename, sessionId),
-                          tooltip: 'Import',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                          onPressed: () => _showDeleteArduinoConfirmation(filename),
-                          tooltip: 'Delete',
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              }).toList(),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Session $sessionId',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Color(0xFF37474F),
+                                      ),
+                                    ),
+                                    if (durationMins > 0)
+                                      Text(
+                                        '~$durationMins min',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              if (isImporting)
+                                SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _softGreen,
+                                  ),
+                                )
+                              else ...[
+                                GestureDetector(
+                                  onTap: _isImportingSession
+                                      ? null
+                                      : () => _importArduinoSession(
+                                          filename,
+                                          sessionId,
+                                        ),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(7),
+                                    decoration: BoxDecoration(
+                                      color: _softGreen.withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.download_rounded,
+                                      color: _softGreen,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () =>
+                                      _showDeleteArduinoConfirmation(filename),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(7),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade50,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.red.shade300,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      })
+                      .toList(),
                 ),
               ),
           ],
@@ -481,8 +616,11 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Delete from Calmwand?'),
-        content: Text('Delete $filename from the device? This cannot be undone.'),
+        content: Text(
+          'Delete $filename from the device? This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -504,29 +642,47 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   Widget _buildWeekCalendarCard(List<SessionModel> sessions) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
-    // Create a set of dates that have sessions
-    final sessionDates = <DateTime>{};
+
+    // ---JOSEPHINES ADDITION START---
+    // Build a map from date → total duration (seconds) for that day
+    // so we can show partial vs full circles based on session length
+    final Map<DateTime, int> sessionDurations = {};
     for (final session in sessions) {
-      sessionDates.add(DateTime(
+      final date = DateTime(
         session.timestamp.year,
         session.timestamp.month,
         session.timestamp.day,
-      ));
+      );
+      // If multiple sessions on same day, use the longest one
+      final existing = sessionDurations[date] ?? 0;
+      if (session.duration > existing) {
+        sessionDurations[date] = session.duration;
+      }
     }
-    
-    // Generate last 7 days
+    // ---JOSEPHINES ADDITION END---
+
     final last7Days = List.generate(7, (index) {
       return today.subtract(Duration(days: 6 - index));
     });
 
+    final weekCount = _getSessionCountLastWeek(
+      sessionDurations.keys.toSet(),
+      today,
+    );
+
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [AppTheme.strongShadow],
+        color: Colors.white.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _softPurple.withValues(alpha: 0.15),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -534,16 +690,29 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Last 7 Days',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.brown.shade700,
-                ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: _softAmber.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text('📅', style: TextStyle(fontSize: 14)),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'This Week',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF5C6BC0),
+                    ),
+                  ),
+                ],
               ),
-              TextButton.icon(
-                onPressed: () {
+              GestureDetector(
+                onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -551,23 +720,50 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                     ),
                   );
                 },
-                icon: const Icon(Icons.calendar_month, size: 18),
-                label: const Text('See All'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.blue.shade700,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _softBlue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.calendar_month_rounded,
+                        size: 14,
+                        color: _softBlue,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'See All',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _softBlue,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
 
-          // 7-day calendar row
+          // ---JOSEPHINES ADDITION START---
+          // 7-day row — shows partial/full circle based on session duration
+          // < 10 min = partial arc, >= 10 min = full circle
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: last7Days.map((date) {
-              final hasSession = sessionDates.contains(date);
+              final duration = sessionDurations[date]; // null if no session
+              final hasSession = duration != null;
               final isToday = date == today;
-              
+
               return GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -582,36 +778,65 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                     Text(
                       _getWeekdayAbbr(date.weekday),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: isToday ? Colors.blue.shade700 : Colors.grey.shade600,
+                        color: isToday ? _softBlue : Colors.grey.shade500,
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Container(
+                    // Circle container — 36x36 to match original size
+                    SizedBox(
                       width: 36,
                       height: 36,
-                      decoration: BoxDecoration(
-                        color: hasSession 
-                            ? Colors.green.shade400 
-                            : (isToday ? Colors.blue.shade50 : Colors.grey.shade100),
-                        shape: BoxShape.circle,
-                        border: isToday 
-                            ? Border.all(color: Colors.blue.shade400, width: 2)
-                            : null,
-                      ),
-                      child: Center(
-                        child: hasSession
-                            ? const Icon(Icons.check, color: Colors.white, size: 20)
-                            : Text(
-                                '${date.day}',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                                  color: isToday ? Colors.blue.shade700 : Colors.grey.shade700,
+                      child: hasSession
+                          ? CustomPaint(
+                              // Partial or full arc based on duration
+                              painter: _SessionCirclePainter(
+                                // 600s = 10 min threshold
+                                fraction: (duration >= 600)
+                                    ? 1.0
+                                    : (duration / 600.0).clamp(0.0, 1.0),
+                                color: _softGreen,
+                                isToday: isToday,
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  // Full circle = checkmark, partial = clock
+                                  duration >= 600
+                                      ? Icons.check
+                                      : Icons.timelapse,
+                                  color: Colors.white,
+                                  size: duration >= 600 ? 18 : 14,
                                 ),
                               ),
-                      ),
+                            )
+                          : Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: isToday
+                                    ? _softBlue.withValues(alpha: 0.1)
+                                    : Colors.grey.shade100,
+                                shape: BoxShape.circle,
+                                border: isToday
+                                    ? Border.all(color: _softBlue, width: 2)
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${date.day}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isToday
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isToday
+                                        ? _softBlue
+                                        : Colors.grey.shade600,
+                                  ),
+                                ),
+                              ),
+                            ),
                     ),
                   ],
                 ),
@@ -619,36 +844,83 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
             }).toList(),
           ),
 
-          const SizedBox(height: 16),
+          // ---JOSEPHINES ADDITION END---
+          const SizedBox(height: 14),
 
-          // Summary text
+          // ---JOSEPHINES ADDITION START---
+          // Legend for partial vs full circles
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                _getSessionCountLastWeek(sessionDates, today) > 0 
-                    ? Icons.emoji_events 
-                    : Icons.info_outline,
-                color: _getSessionCountLastWeek(sessionDates, today) > 0 
-                    ? Colors.amber 
-                    : Colors.grey,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _getWeeklySummaryText(sessionDates, today),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade700,
+              _buildLegendItem(Icons.timelapse, _softGreen, '< 10 min'),
+              const SizedBox(width: 16),
+              _buildLegendItem(Icons.check_circle, _softGreen, '≥ 10 min'),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // ---JOSEPHINES ADDITION END---
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: weekCount > 0
+                    ? _softGreen.withValues(alpha: 0.12)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: weekCount > 0
+                      ? _softGreen.withValues(alpha: 0.4)
+                      : Colors.grey.shade200,
                 ),
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    weekCount == 7
+                        ? '🏆'
+                        : weekCount > 0
+                        ? '🌿'
+                        : '💤',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _getWeeklySummaryText(sessionDurations.keys.toSet(), today),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: weekCount > 0
+                          ? Colors.green.shade700
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+
+  // ---JOSEPHINES ADDITION START---
+  // Small legend item for the partial/full circle key
+  Widget _buildLegendItem(IconData icon, Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
+      ],
+    );
+  }
+  // ---JOSEPHINES ADDITION END---
 
   String _getWeekdayAbbr(int weekday) {
     const abbrs = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -659,27 +931,42 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     int count = 0;
     for (int i = 0; i < 7; i++) {
       final date = today.subtract(Duration(days: i));
-      if (sessionDates.contains(date)) {
-        count++;
-      }
+      if (sessionDates.contains(date)) count++;
     }
     return count;
   }
 
   String _getWeeklySummaryText(Set<DateTime> sessionDates, DateTime today) {
     final count = _getSessionCountLastWeek(sessionDates, today);
-    if (count == 0) {
-      return 'No sessions this week';
-    } else if (count == 1) {
-      return '1 session this week';
-    } else if (count == 7) {
-      return 'Perfect week! 🎉';
-    } else {
-      return '$count sessions this week';
-    }
+    if (count == 0) return 'No sessions this week';
+    if (count == 1) return '1 session this week';
+    if (count == 7) return 'Perfect week! 🎉';
+    return '$count sessions this week';
   }
 
   Widget _buildSessionCard(session) {
+    final score = session.score as double?;
+    Color scoreColor;
+    String scoreEmoji;
+    Color scoreBg;
+    if (score == null) {
+      scoreColor = Colors.grey;
+      scoreEmoji = '—';
+      scoreBg = Colors.grey.shade100;
+    } else if (score <= 50) {
+      scoreColor = Colors.red.shade400;
+      scoreEmoji = '💪';
+      scoreBg = Colors.red.shade50;
+    } else if (score <= 80) {
+      scoreColor = const Color(0xFFFFB300);
+      scoreEmoji = '⭐';
+      scoreBg = const Color(0xFFFFF8E1);
+    } else {
+      scoreColor = const Color(0xFF81C784);
+      scoreEmoji = '🏆';
+      scoreBg = const Color(0xFFF1F8E9);
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
@@ -692,80 +979,119 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [AppTheme.cardShadow],
+          color: Colors.white.withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: _softPurple.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            // Score
             Container(
-              width: 60,
-              height: 60,
+              width: 62,
+              height: 62,
               decoration: BoxDecoration(
-                color: Colors.yellow.shade50,
-                borderRadius: BorderRadius.circular(12),
+                color: scoreBg,
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.star, color: Colors.amber, size: 20),
-                  const SizedBox(height: 4),
+                  Text(scoreEmoji, style: const TextStyle(fontSize: 18)),
+                  const SizedBox(height: 2),
                   Text(
-                    session.score != null
-                        ? session.score!.toStringAsFixed(0)
-                        : 'N/A',
-                    style: const TextStyle(
-                      fontSize: 16,
+                    score != null ? score.toStringAsFixed(0) : 'N/A',
+                    style: TextStyle(
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: Colors.red,
+                      color: scoreColor,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 16),
-            // Details
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    'Session #${session.sessionNumber}',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF37474F),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
                   Row(
                     children: [
-                      const Icon(Icons.access_time, size: 16, color: Colors.blue),
+                      Icon(
+                        Icons.access_time_rounded,
+                        size: 13,
+                        color: _softBlue,
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        'Duration: ${session.duration ~/ 60} min',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                        '${session.duration ~/ 60} min',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.calendar_today_rounded,
+                        size: 13,
+                        color: _softPurple,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatDate(session.timestamp),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Session #${session.sessionNumber}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.grey),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade300),
           ],
         ),
       ),
     );
   }
 
-  void _showClearConfirmation(
-      BuildContext context, SessionProvider provider) {
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[dt.month - 1]} ${dt.day}';
+  }
+
+  void _showClearConfirmation(BuildContext context, SessionProvider provider) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Delete All Sessions?'),
         content: const Text('This action cannot be undone.'),
         actions: [
@@ -786,3 +1112,81 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     );
   }
 }
+
+// ---JOSEPHINES ADDITION START---
+
+/// Paints a circular arc to show session completeness.
+/// fraction = 1.0 → full filled circle (>= 10 min)
+/// fraction < 1.0 → partial arc (< 10 min), filled proportionally
+class _SessionCirclePainter extends CustomPainter {
+  final double fraction; // 0.0 → 1.0
+  final Color color;
+  final bool isToday;
+
+  const _SessionCirclePainter({
+    required this.fraction,
+    required this.color,
+    this.isToday = false,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 1;
+
+    if (fraction >= 1.0) {
+      // Full session — filled circle with glow
+      final fillPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, radius, fillPaint);
+
+      // Subtle glow ring
+      final glowPaint = Paint()
+        ..color = color.withValues(alpha: 0.3)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3;
+      canvas.drawCircle(center, radius + 1.5, glowPaint);
+    } else {
+      // Partial session — faint background circle + arc
+      final bgPaint = Paint()
+        ..color = color.withValues(alpha: 0.2)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, radius, bgPaint);
+
+      // Arc fill (pie slice)
+      final arcPaint = Paint()
+        ..color = color.withValues(alpha: 0.75)
+        ..style = PaintingStyle.fill;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -3.14159 / 2, // start at 12 o'clock
+        2 * 3.14159 * fraction,
+        true, // close to center = pie slice
+        arcPaint,
+      );
+
+      // Border ring
+      final borderPaint = Paint()
+        ..color = color.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5;
+      canvas.drawCircle(center, radius, borderPaint);
+    }
+
+    // Today ring overlay
+    if (isToday) {
+      final todayPaint = Paint()
+        ..color = const Color(0xFF89B4D4)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5;
+      canvas.drawCircle(center, radius + 2, todayPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SessionCirclePainter old) =>
+      old.fraction != fraction || old.color != color || old.isToday != isToday;
+}
+
+// ---JOSEPHINES ADDITION END---

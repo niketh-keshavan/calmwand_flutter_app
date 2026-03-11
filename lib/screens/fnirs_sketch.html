@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transmission fNIRS — Lab Sketches</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #f5f0e8;
+      font-family: 'Courier Prime', monospace;
+      color: #1a1a1a;
+      min-height: 100vh;
+      padding: 30px 20px;
+      background-image:
+        repeating-linear-gradient(transparent, transparent 27px, #c8d8e8 27px, #c8d8e8 28px);
+      background-size: 100% 28px;
+    }
+
+    .page {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fefcf5;
+      border: 1px solid #c0b090;
+      box-shadow: 4px 4px 20px rgba(0, 0, 0, 0.15);
+      padding: 40px;
+      position: relative;
+    }
+
+    .page::before {
+      content: '';
+      position: absolute;
+      left: 72px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #e8a0a0;
+      opacity: 0.6;
+    }
+
+    .header {
+      text-align: right;
+      font-family: 'Special Elite', serif;
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .page-title {
+      font-family: 'Special Elite', serif;
+      font-size: 22px;
+      text-align: center;
+      margin-bottom: 30px;
+      color: #1a1a1a;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+
+    .sketch-section {
+      margin-bottom: 48px;
+    }
+
+    .sketch-label {
+      font-family: 'Special Elite', serif;
+      font-size: 15px;
+      font-weight: bold;
+      margin-bottom: 14px;
+      padding-left: 80px;
+      color: #1a3060;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      font-family: 'Courier Prime', monospace;
+    }
+
+    .note-box {
+      margin-top: 12px;
+      padding: 10px 16px;
+      padding-left: 80px;
+      font-size: 11.5px;
+      color: #333;
+      line-height: 1.8;
+      border-left: 3px solid #4a7090;
+      margin-left: 80px;
+      background: rgba(74, 112, 144, 0.05);
+    }
+
+    .note-box b {
+      color: #1a3060;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px dashed #aaa;
+      margin: 36px 0;
+    }
+
+    .footnote {
+      font-size: 10.5px;
+      color: #888;
+      text-align: center;
+      margin-top: 30px;
+      font-style: italic;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+
+    <div class="header">Hansma Lab — March 2026 &nbsp;&nbsp;|&nbsp;&nbsp; Transmission fNIRS Sketches</div>
+    <div class="page-title">Transmission fNIRS — Equipment & Setup Diagrams</div>
+
+    <!-- SKETCH 1 -->
+    <div class="sketch-section">
+      <div class="sketch-label">Sketch 1 — Single Path Bench Test (Milk Phantom)</div>
+
+      <svg viewBox="0 0 780 320" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- Phantom box -->
+        <rect x="140" y="60" width="460" height="200" rx="4" fill="#e8f4fb" stroke="#2a5080" stroke-width="2.5"
+          stroke-dasharray="6,3" />
+        <text x="360" y="52" text-anchor="middle" font-size="11" fill="#2a5080" font-style="italic">MILK PHANTOM — 10%
+          milk in water (simulates brain tissue)</text>
+
+        <!-- Milk fill label -->
+        <text x="360" y="175" text-anchor="middle" font-size="10" fill="#5090b0" font-style="italic">scattered light
+          cloud</text>
+        <!-- Scattering dots suggestion -->
+        <circle cx="260" cy="155" r="2" fill="#90b8d0" opacity="0.5" />
+        <circle cx="310" cy="140" r="2" fill="#90b8d0" opacity="0.5" />
+        <circle cx="290" cy="170" r="2" fill="#90b8d0" opacity="0.5" />
+        <circle cx="340" cy="150" r="2" fill="#90b8d0" opacity="0.5" />
+        <circle cx="380" cy="165" r="2" fill="#90b8d0" opacity="0.5" />
+        <circle cx="420" cy="145" r="2" fill="#90b8d0" opacity="0.5" />
+        <circle cx="460" cy="162" r="2" fill="#90b8d0" opacity="0.5" />
+
+        <!-- Ink absorber target in center -->
+        <circle cx="370" cy="158" r="22" fill="#1a1a3a" opacity="0.85" />
+        <text x="370" y="154" text-anchor="middle" font-size="9" fill="white" font-weight="bold">ink</text>
+        <text x="370" y="166" text-anchor="middle" font-size="9" fill="white" font-weight="bold">absorber</text>
+        <text x="370" y="200" text-anchor="middle" font-size="9" fill="#1a3060">simulated rACC / DLPFC</text>
+
+        <!-- LASER SOURCE left -->
+        <rect x="42" y="135" width="90" height="46" rx="5" fill="#003060" stroke="#0060c0" stroke-width="2" />
+        <text x="87" y="154" text-anchor="middle" font-size="10" fill="white" font-weight="bold">940 nm</text>
+        <text x="87" y="167" text-anchor="middle" font-size="10" fill="#88ccff">LASER</text>
+        <text x="87" y="200" text-anchor="middle" font-size="9" fill="#555">modulated</text>
+        <text x="87" y="212" text-anchor="middle" font-size="9" fill="#c04000" font-weight="bold">10 MHz → 1 GHz</text>
+        <text x="87" y="224" text-anchor="middle" font-size="8" fill="#555">(chirp sweep)</text>
+
+        <!-- Arrow laser → phantom -->
+        <line x1="132" y1="158" x2="140" y2="158" stroke="#0060c0" stroke-width="2.5" marker-end="url(#arrow-blue)" />
+
+        <!-- Direct path arrow (straight) -->
+        <line x1="142" y1="148" x2="596" y2="148" stroke="#00aa44" stroke-width="1.5" stroke-dasharray="5,3" />
+        <text x="360" y="138" text-anchor="middle" font-size="9" fill="#00aa44">direct path (~1 ns) ← photons we
+          WANT</text>
+
+        <!-- Scattered path (wavy suggestion) -->
+        <path d="M 142 168 Q 200 210 260 168 Q 320 126 380 168 Q 440 210 500 168 Q 550 140 596 168" fill="none"
+          stroke="#cc4400" stroke-width="1.5" stroke-dasharray="4,3" />
+        <text x="360" y="226" text-anchor="middle" font-size="9" fill="#cc4400">scattered path (>1 ns) ← photons that
+          wandered</text>
+
+        <!-- SiPM DETECTOR right -->
+        <rect x="602" y="130" width="90" height="56" rx="5" fill="#1a3a00" stroke="#44aa00" stroke-width="2" />
+        <text x="647" y="150" text-anchor="middle" font-size="10" fill="white" font-weight="bold">SiPM</text>
+        <text x="647" y="163" text-anchor="middle" font-size="9" fill="#88ff44">DETECTOR</text>
+        <text x="647" y="176" text-anchor="middle" font-size="8" fill="#aaffaa">Broadcom</text>
+        <text x="647" y="200" text-anchor="middle" font-size="9" fill="#555">gain = 10⁶</text>
+        <text x="647" y="212" text-anchor="middle" font-size="9" fill="#555">counts photons</text>
+
+        <!-- Arrow phantom → detector -->
+        <line x1="600" y1="158" x2="602" y2="158" stroke="#44aa00" stroke-width="2.5" marker-end="url(#arrow-green)" />
+
+        <!-- Battery pack below left -->
+        <rect x="30" y="250" width="110" height="36" rx="4" fill="#3a3000" stroke="#aaaa00" stroke-width="1.5" />
+        <text x="85" y="265" text-anchor="middle" font-size="9" fill="#ffee44">4× 9V batteries</text>
+        <text x="85" y="278" text-anchor="middle" font-size="9" fill="#ffee44">in series (~36V)</text>
+        <text x="85" y="295" text-anchor="middle" font-size="8" fill="#888">clean DC bias for SiPM</text>
+
+        <!-- Correlation box bottom center -->
+        <rect x="260" y="262" width="220" height="40" rx="5" fill="#1a0030" stroke="#9900cc" stroke-width="1.5" />
+        <text x="370" y="278" text-anchor="middle" font-size="10" fill="white"
+          font-weight="bold">CROSS-CORRELATION</text>
+        <text x="370" y="293" text-anchor="middle" font-size="9" fill="#cc88ff">finds delay peak → maps
+          absorption</text>
+
+        <!-- AD9833 chirp generator -->
+        <rect x="590" y="252" width="110" height="40" rx="4" fill="#300010" stroke="#cc0044" stroke-width="1.5" />
+        <text x="645" y="268" text-anchor="middle" font-size="9" fill="white" font-weight="bold">AD9833 / FPGA</text>
+        <text x="645" y="282" text-anchor="middle" font-size="8" fill="#ff8888">chirp generator</text>
+        <text x="645" y="295" text-anchor="middle" font-size="8" fill="#888">(GHz range needed)</text>
+
+        <!-- Arrows -->
+        <defs>
+          <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#0060c0" />
+          </marker>
+          <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#44aa00" />
+          </marker>
+        </defs>
+
+      </svg>
+
+      <div class="note-box">
+        <b>Goal:</b> See a cross-correlation peak at all. If peak shifts when you change milk %, physics is
+        working.<br />
+        <b>Key correction from Prof. Hansma (Mar 9):</b> Chirp must reach MHz–GHz range — a 20–30 cm head = ~1 ns
+        transit time, so the chirp period needs to be ~1 ns to tell direct photons from scattered ones.<br />
+        <b>Hardware needed:</b> GHz-capable laser diode (telecom grade) · fast SiPM or avalanche photodiode · RF mixer
+        or FPGA for correlation · 4× 9V batteries for clean detector bias
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- SKETCH 2 -->
+    <div class="sketch-section">
+      <div class="sketch-label">Sketch 2 — Ring Array (Tomographic Setup / Head from Above)</div>
+
+      <svg viewBox="0 0 780 400" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- Head circle -->
+        <circle cx="340" cy="200" r="148" fill="#e8f0f8" stroke="#2a5080" stroke-width="2.5" />
+        <text x="340" y="28" text-anchor="middle" font-size="11" fill="#2a5080" font-style="italic">HEAD (viewed from
+          above)</text>
+
+        <!-- Brain interior suggestion -->
+        <circle cx="340" cy="200" r="110" fill="#d8e8f4" stroke="#4a80a0" stroke-width="1" stroke-dasharray="3,3"
+          opacity="0.6" />
+
+        <!-- CSF layer label -->
+        <text x="420" y="90" text-anchor="start" font-size="9" fill="#4a80a0" font-style="italic">CSF layer</text>
+        <line x1="418" y1="92" x2="396" y2="100" stroke="#4a80a0" stroke-width="0.8" />
+
+        <!-- rACC target in center -->
+        <circle cx="340" cy="185" r="28" fill="#cc2200" opacity="0.85" />
+        <text x="340" y="181" text-anchor="middle" font-size="9" fill="white" font-weight="bold">rACC</text>
+        <text x="340" y="193" text-anchor="middle" font-size="8" fill="#ffaaaa">target</text>
+
+        <!-- DLPFC -->
+        <circle cx="295" cy="148" r="18" fill="#003399" opacity="0.7" />
+        <text x="295" y="145" text-anchor="middle" font-size="8" fill="white">DLPFC</text>
+        <text x="295" y="156" text-anchor="middle" font-size="7" fill="#aabbff">~4cm deep</text>
+
+        <!-- Amygdala -->
+        <circle cx="385" cy="230" r="14" fill="#006622" opacity="0.7" />
+        <text x="385" y="227" text-anchor="middle" font-size="8" fill="white">Amyg.</text>
+        <text x="385" y="238" text-anchor="middle" font-size="7" fill="#aaffaa">~6cm</text>
+
+        <!-- Sources and detectors around ring — 8 each alternating -->
+        <!-- Source = filled circle (blue), Detector = square (green) -->
+        <!-- Positions at every 22.5 degrees, 16 total -->
+
+        <!-- 0° = right -->
+        <rect x="482" y="192" width="16" height="16" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="510" y="203" font-size="9" fill="#44aa00">DET 1</text>
+
+        <!-- 22.5° -->
+        <circle cx="474" cy="144" r="8" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="486" y="142" font-size="9" fill="#0060c0">SRC A</text>
+
+        <!-- 45° -->
+        <rect x="438" y="62" width="16" height="16" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="458" y="74" font-size="9" fill="#44aa00">DET 2</text>
+
+        <!-- 67.5° -->
+        <circle cx="356" cy="49" r="8" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="366" y="47" font-size="9" fill="#0060c0">SRC B</text>
+
+        <!-- 90° = top -->
+        <rect x="332" y="40" width="16" height="16" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="290" y="52" font-size="9" fill="#44aa00">DET 3</text>
+
+        <!-- 112.5° -->
+        <circle cx="222" cy="62" r="8" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="184" y="60" font-size="9" fill="#0060c0">SRC C</text>
+
+        <!-- 135° -->
+        <rect x="196" y="100" width="16" height="16" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="148" y="112" font-size="9" fill="#44aa00">DET 4</text>
+
+        <!-- 157.5° -->
+        <circle cx="190" cy="158" r="8" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="142" y="156" font-size="9" fill="#0060c0">SRC D</text>
+
+        <!-- 180° = left -->
+        <rect x="188" y="192" width="16" height="16" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="138" y="203" font-size="9" fill="#44aa00">DET 5</text>
+
+        <!-- 202.5° -->
+        <circle cx="196" cy="244" r="8" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="140" y="248" font-size="9" fill="#0060c0">SRC E</text>
+
+        <!-- 225° -->
+        <rect x="208" y="284" width="16" height="16" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="150" y="298" font-size="9" fill="#44aa00">DET 6</text>
+
+        <!-- 247.5° -->
+        <circle cx="268" cy="333" r="8" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="248" y="350" font-size="9" fill="#0060c0">SRC F</text>
+
+        <!-- 270° = bottom -->
+        <rect x="332" y="340" width="16" height="16" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="332" y="370" font-size="9" fill="#44aa00">DET 7</text>
+
+        <!-- 292.5° -->
+        <circle cx="412" cy="330" r="8" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="420" y="348" font-size="9" fill="#0060c0">SRC G</text>
+
+        <!-- 315° -->
+        <rect x="450" y="282" width="16" height="16" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="468" y="297" font-size="9" fill="#44aa00">DET 8</text>
+
+        <!-- 337.5° -->
+        <circle cx="476" cy="242" r="8" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="486" y="246" font-size="9" fill="#0060c0">SRC H</text>
+
+        <!-- Chord lines through center — 4 diametrically opposite pairs -->
+        <!-- SRC A → DET 5 -->
+        <line x1="474" y1="144" x2="196" y2="200" stroke="#0060c0" stroke-width="1" stroke-dasharray="5,3"
+          opacity="0.5" />
+        <!-- SRC B → DET 6 -->
+        <line x1="356" y1="49" x2="216" y2="292" stroke="#0060c0" stroke-width="1" stroke-dasharray="5,3"
+          opacity="0.5" />
+        <!-- SRC C → DET 8 -->
+        <line x1="222" y1="62" x2="458" y2="290" stroke="#0060c0" stroke-width="1" stroke-dasharray="5,3"
+          opacity="0.5" />
+        <!-- SRC D → DET 1 -->
+        <line x1="190" y1="158" x2="490" y2="200" stroke="#0060c0" stroke-width="1" stroke-dasharray="5,3"
+          opacity="0.5" />
+        <!-- SRC E → DET 2 -->
+        <line x1="196" y1="244" x2="446" y2="70" stroke="#8800cc" stroke-width="1" stroke-dasharray="5,3"
+          opacity="0.5" />
+        <!-- SRC F → DET 3 -->
+        <line x1="268" y1="333" x2="340" y2="48" stroke="#8800cc" stroke-width="1" stroke-dasharray="5,3"
+          opacity="0.5" />
+        <!-- SRC G → DET 4 -->
+        <line x1="412" y1="330" x2="204" y2="108" stroke="#8800cc" stroke-width="1" stroke-dasharray="5,3"
+          opacity="0.5" />
+        <!-- SRC H → DET 7 -->
+        <line x1="476" y1="242" x2="340" y2="348" stroke="#8800cc" stroke-width="1" stroke-dasharray="5,3"
+          opacity="0.5" />
+
+        <!-- Intersection highlight -->
+        <circle cx="340" cy="185" r="32" fill="none" stroke="#ffaa00" stroke-width="2.5" stroke-dasharray="4,2" />
+        <text x="540" y="185" text-anchor="start" font-size="10" fill="#ffaa00" font-weight="bold">← all chords</text>
+        <text x="540" y="198" text-anchor="start" font-size="10" fill="#ffaa00" font-weight="bold"> intersect
+          here</text>
+        <text x="540" y="214" text-anchor="start" font-size="9" fill="#888">= rACC voxel</text>
+        <line x1="538" y1="192" x2="375" y2="192" stroke="#ffaa00" stroke-width="1" stroke-dasharray="3,2" />
+
+        <!-- Stanford fire neurofeedback callout -->
+        <rect x="490" y="290" width="230" height="80" rx="6" fill="#1a0000" stroke="#cc2200" stroke-width="1.5" />
+        <text x="605" y="308" text-anchor="middle" font-size="9" fill="#ff6644" font-weight="bold">Stanford 2005
+          (PNAS):</text>
+        <text x="605" y="322" text-anchor="middle" font-size="8.5" fill="#ffccaa">Patients watched a fire 🔥</text>
+        <text x="605" y="336" text-anchor="middle" font-size="8.5" fill="#ffccaa">that showed their rACC
+          activity.</text>
+        <text x="605" y="350" text-anchor="middle" font-size="8.5" fill="#ffccaa">They learned to lower it → less
+          pain.</text>
+        <text x="605" y="364" text-anchor="middle" font-size="8" fill="#ff8888" font-style="italic">Abandoned: needed $M
+          fMRI machine.</text>
+        <text x="605" y="378" text-anchor="middle" font-size="8" fill="#ffaa44" font-weight="bold">We want to revive it
+          with this device.</text>
+
+        <!-- Legend -->
+        <circle cx="560" cy="130" r="7" fill="#0060c0" stroke="#003090" stroke-width="1.5" />
+        <text x="572" y="134" font-size="9" fill="#0060c0">= laser source (940nm, chirped)</text>
+        <rect x="553" y="148" width="14" height="14" fill="#44aa00" stroke="#006600" stroke-width="1.5" rx="2" />
+        <text x="572" y="160" font-size="9" fill="#44aa00">= SiPM detector</text>
+        <line x1="553" y1="180" x2="590" y2="180" stroke="#0060c0" stroke-width="1.5" stroke-dasharray="5,3" />
+        <text x="596" y="184" font-size="9" fill="#888">= light chord path</text>
+
+      </svg>
+
+      <div class="note-box">
+        <b>Each source fires a different chirp band</b> so signals don't mix — code-division multiplexing.<br />
+        <b>All chords cross the rACC</b> — that intersection is amplified, everything else averages out.<br />
+        <b>Back-projection math</b> reconstructs which voxel changed (same algorithm as our simulation app).<br />
+        <b>Long-term goal:</b> Patient sees real-time rACC activity → learns to lower it → chronic pain reduced. No fMRI
+        needed.
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- SKETCH 3 — hardware checklist -->
+    <div class="sketch-section">
+      <div class="sketch-label">Sketch 3 — What We Need to Build (Hardware Checklist)</div>
+
+      <svg viewBox="0 0 780 210" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- 5 component boxes -->
+        <!-- Box 1: Laser -->
+        <rect x="20" y="30" width="130" height="130" rx="8" fill="#001830" stroke="#0080cc" stroke-width="2" />
+        <text x="85" y="52" text-anchor="middle" font-size="11" fill="#88ccff" font-weight="bold">① LASER</text>
+        <text x="85" y="70" text-anchor="middle" font-size="9" fill="white">940 nm</text>
+        <text x="85" y="84" text-anchor="middle" font-size="9" fill="#ffaa44">GHz modulation</text>
+        <text x="85" y="98" text-anchor="middle" font-size="8" fill="#aaa">telecom-grade</text>
+        <text x="85" y="112" text-anchor="middle" font-size="8" fill="#aaa">laser diode</text>
+        <text x="85" y="130" text-anchor="middle" font-size="8" fill="#ff6644">⚠ not the $54</text>
+        <text x="85" y="143" text-anchor="middle" font-size="8" fill="#ff6644">laser — needs faster</text>
+
+        <!-- Box 2: Chirp generator -->
+        <rect x="168" y="30" width="130" height="130" rx="8" fill="#180030" stroke="#9900cc" stroke-width="2" />
+        <text x="233" y="52" text-anchor="middle" font-size="11" fill="#cc88ff" font-weight="bold">② CHIRP GEN</text>
+        <text x="233" y="70" text-anchor="middle" font-size="9" fill="white">10 MHz → 1 GHz</text>
+        <text x="233" y="84" text-anchor="middle" font-size="9" fill="#ffaa44">FPGA or RF VCO</text>
+        <text x="233" y="98" text-anchor="middle" font-size="8" fill="#aaa">AD9833 only goes</text>
+        <text x="233" y="112" text-anchor="middle" font-size="8" fill="#aaa">to ~12 MHz —</text>
+        <text x="233" y="126" text-anchor="middle" font-size="8" fill="#aaa">need faster chip</text>
+        <text x="233" y="143" text-anchor="middle" font-size="8" fill="#88ff88">research needed</text>
+
+        <!-- Box 3: Phantom -->
+        <rect x="316" y="30" width="130" height="130" rx="8" fill="#001810" stroke="#009944" stroke-width="2" />
+        <text x="381" y="52" text-anchor="middle" font-size="11" fill="#88ffaa" font-weight="bold">③ PHANTOM</text>
+        <text x="381" y="70" text-anchor="middle" font-size="9" fill="white">10% low-fat milk</text>
+        <text x="381" y="84" text-anchor="middle" font-size="9" fill="white">+ distilled water</text>
+        <text x="381" y="100" text-anchor="middle" font-size="9" fill="#ffaa44">+ India ink trace</text>
+        <text x="381" y="116" text-anchor="middle" font-size="9" fill="#ffaa44">(= hemoglobin)</text>
+        <text x="381" y="132" text-anchor="middle" font-size="8" fill="#aaa">ink balloon at center</text>
+        <text x="381" y="145" text-anchor="middle" font-size="8" fill="#aaa">= deep target</text>
+
+        <!-- Box 4: Detector -->
+        <rect x="464" y="30" width="130" height="130" rx="8" fill="#181800" stroke="#aaaa00" stroke-width="2" />
+        <text x="529" y="52" text-anchor="middle" font-size="11" fill="#ffff44" font-weight="bold">④ DETECTOR</text>
+        <text x="529" y="70" text-anchor="middle" font-size="9" fill="white">SiPM — Broadcom</text>
+        <text x="529" y="84" text-anchor="middle" font-size="9" fill="white">AFBR-S4P11P012R</text>
+        <text x="529" y="100" text-anchor="middle" font-size="9" fill="#ffaa44">gain = 10⁶</text>
+        <text x="529" y="116" text-anchor="middle" font-size="9" fill="#ffaa44">bias: 4×9V batteries</text>
+        <text x="529" y="132" text-anchor="middle" font-size="8" fill="#aaa">90kΩ + 10kΩ pot</text>
+        <text x="529" y="145" text-anchor="middle" font-size="8" fill="#aaa">voltage divider</text>
+
+        <!-- Box 5: Correlation -->
+        <rect x="612" y="30" width="148" height="130" rx="8" fill="#180010" stroke="#cc0066" stroke-width="2" />
+        <text x="686" y="52" text-anchor="middle" font-size="11" fill="#ff88cc" font-weight="bold">⑤ CORRELATION</text>
+        <text x="686" y="70" text-anchor="middle" font-size="9" fill="white">cross-correlate</text>
+        <text x="686" y="84" text-anchor="middle" font-size="9" fill="white">received vs sent</text>
+        <text x="686" y="100" text-anchor="middle" font-size="9" fill="#ffaa44">peak position =</text>
+        <text x="686" y="114" text-anchor="middle" font-size="9" fill="#ffaa44">time delay = depth</text>
+        <text x="686" y="130" text-anchor="middle" font-size="8" fill="#aaa">FPGA or fast DSP</text>
+        <text x="686" y="145" text-anchor="middle" font-size="8" fill="#aaa">Arduino for low-freq test</text>
+
+        <!-- Flow arrows -->
+        <line x1="150" y1="95" x2="166" y2="95" stroke="#fff" stroke-width="1.5" marker-end="url(#arr-w)" />
+        <line x1="298" y1="95" x2="314" y2="95" stroke="#fff" stroke-width="1.5" marker-end="url(#arr-w)" />
+        <line x1="446" y1="95" x2="462" y2="95" stroke="#fff" stroke-width="1.5" marker-end="url(#arr-w)" />
+        <line x1="594" y1="95" x2="610" y2="95" stroke="#fff" stroke-width="1.5" marker-end="url(#arr-w)" />
+
+        <defs>
+          <marker id="arr-w" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L7,3 z" fill="white" />
+          </marker>
+        </defs>
+
+        <!-- Step labels -->
+        <text x="383" y="195" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+          laser chirp → through phantom → detector picks up faint signal → math finds the delay
+        </text>
+
+      </svg>
+    </div>
+
+    <div class="footnote">
+      Hansma Lab · UCSB · March 2026 &nbsp;·&nbsp; "Glasgow proved the photons exist. We want to find them cheaply."
+      &nbsp;·&nbsp; Stanford rACC neurofeedback: revive it without fMRI.
+    </div>
+
+  </div>
+</body>
+
+</html>

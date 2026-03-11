@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'firebase_options.dart';
 
 import 'services/storage_service.dart';
@@ -25,9 +27,7 @@ void main() async {
   ]);
 
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Initialize storage services
   await StorageService.initialize();
@@ -35,6 +35,23 @@ void main() async {
 
   // Enable wake lock to prevent screen from sleeping during sessions
   await WakelockPlus.enable();
+
+  // Initialize timezone data for notifications
+  tz.initializeTimeZones();
+
+  // Initialize local notifications
+  final FlutterLocalNotificationsPlugin notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  const AndroidInitializationSettings androidSettings =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
+    requestAlertPermission: true,
+    requestBadgePermission: true,
+    requestSoundPermission: true,
+  );
+  await notificationsPlugin.initialize(
+    const InitializationSettings(android: androidSettings, iOS: iosSettings),
+  );
 
   runApp(const CalmwandApp());
 }
@@ -47,19 +64,13 @@ class CalmwandApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         // Auth service (needed first for cloud sync)
-        ChangeNotifierProvider(
-          create: (_) => AuthService()..initialize(),
-        ),
+        ChangeNotifierProvider(create: (_) => AuthService()..initialize()),
 
         // Settings provider (needed first for session provider)
-        ChangeNotifierProvider(
-          create: (_) => SettingsProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
 
         // Bluetooth service
-        ChangeNotifierProvider(
-          create: (_) => BluetoothService(),
-        ),
+        ChangeNotifierProvider(create: (_) => BluetoothService()),
 
         // Cloud session service (depends on auth)
         ProxyProvider<AuthService, CloudSessionService>(
@@ -67,10 +78,13 @@ class CalmwandApp extends StatelessWidget {
         ),
 
         // Session provider (depends on settings and cloud service)
-        ChangeNotifierProxyProvider2<SettingsProvider, CloudSessionService, SessionProvider>(
-          create: (context) => SessionProvider(
-            context.read<SettingsProvider>().settings,
-          ),
+        ChangeNotifierProxyProvider2<
+          SettingsProvider,
+          CloudSessionService,
+          SessionProvider
+        >(
+          create: (context) =>
+              SessionProvider(context.read<SettingsProvider>().settings),
           update: (context, settings, cloudService, previous) {
             final provider = previous ?? SessionProvider(settings.settings);
             provider.setCloudService(cloudService);
@@ -79,9 +93,7 @@ class CalmwandApp extends StatelessWidget {
         ),
 
         // Current session provider
-        ChangeNotifierProvider(
-          create: (_) => CurrentSessionProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => CurrentSessionProvider()),
       ],
       child: MaterialApp(
         title: 'Calmwand',
@@ -90,7 +102,6 @@ class CalmwandApp extends StatelessWidget {
           primarySwatch: Colors.blue,
           brightness: Brightness.light,
           useMaterial3: true,
-          // Force light mode
           colorScheme: ColorScheme.fromSeed(
             seedColor: Colors.blue,
             brightness: Brightness.light,
