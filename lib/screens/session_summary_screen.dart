@@ -60,9 +60,7 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen>
   // One quote per day — cycles through the list based on day of year
   static const List<String> _quotes = [
     '"Calm is a superpower." ✨',
-    '"Breathe. You are exactly where you need to be." 🌿',
     '"Peace begins with a single breath." 💙',
-    '"Your body knows how to calm itself — trust it." 🏆',
     '"Every exhale is a release. Every inhale, a new start." 🌸',
     '"Stillness is not emptiness. It is presence." 🌙',
     '"You don\'t have to control your thoughts. Just don\'t let them control you." 🧘',
@@ -71,8 +69,6 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen>
     '"Tension is who you think you should be. Relaxation is who you are." 💛',
     '"Almost everything will work again if you unplug it for a few minutes." 🔌',
     '"Within you, there is a stillness and a sanctuary." 🕊️',
-    '"Breathe deeply, until sweet air extinguishes the burn of fear." 🌬️',
-    '"The present moment is the only moment available to us." 🌅',
   ];
 
   String get _dailyQuote {
